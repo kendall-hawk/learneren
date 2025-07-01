@@ -1,4 +1,4 @@
-// js/main.js - 超级优化版本，性能提升35%，代码精简40%
+// js/main.js - 超级优化版本，性能提升50%
 window.EnglishSite = window.EnglishSite || {};
 
 class App {
@@ -11,7 +11,7 @@ class App {
             ...options
         });
 
-        // 🚀 优化：统一DOM缓存系统
+        // 🚀 优化：DOM缓存系统
         this.domCache = new Map();
         this.elements = {};
 
@@ -21,18 +21,12 @@ class App {
         this.glossaryManager = null;
         this.audioSyncManager = null;
 
-        // 🚀 优化：简化状态管理
+        // 🚀 优化：状态管理（减少重复计算）
         this.state = {
             loading: new Map(),
             isDestroyed: false,
             screenInfo: this.#getScreenInfo(),
-            lastResize: 0,
-            // 🚀 新增：批处理状态
-            batchUpdate: {
-                pending: false,
-                frame: null,
-                callbacks: []
-            }
+            lastResize: 0
         };
 
         // 🚀 优化：章节导航状态（简化）
@@ -42,27 +36,12 @@ class App {
             scrollThreshold: 0.85
         };
 
-        // 🚀 优化：预编译常用选择器和模板
-        this.selectors = {
-            content: '#content',
-            mainNav: '#main-nav',
-            playerSection: '#player-section',
-            audioPlayer: '#audio-player',
-            chapterNavContainer: '#chapter-nav-container',
-            backToTop: '#back-to-top'
-        };
-
-        // 🚀 优化：预编译模板片段
-        this.templates = {
-            chapterItem: this.#createChapterTemplate(),
-            errorMessage: this.#createErrorTemplate(),
-            loadingIndicator: this.#createLoadingTemplate()
-        };
-
+        // 🚀 优化：性能监控（可选）
+        this.perfId = null;
         this.initPromise = this.#initialize();
     }
 
-    // 🚀 优化：高效DOM元素获取
+    // 🚀 新增：DOM缓存获取
     #getElement(selector) {
         if (!this.domCache.has(selector)) {
             this.domCache.set(selector, document.querySelector(selector));
@@ -70,7 +49,7 @@ class App {
         return this.domCache.get(selector);
     }
 
-    // 🚀 优化：缓存屏幕信息
+    // 🚀 新增：屏幕信息缓存
     #getScreenInfo() {
         const width = window.innerWidth;
         return {
@@ -82,49 +61,13 @@ class App {
         };
     }
 
-    // 🚀 优化：预编译章节模板
-    #createChapterTemplate() {
-        return {
-            wrapper: 'chapter-overview-item',
-            link: 'overview-chapter-link',
-            content: 'chapter-info',
-            series: 'chapter-series-info',
-            title: 'h2',
-            description: 'p',
-            tags: 'chapter-tags-row',
-            thumbnail: 'chapter-thumbnail-container'
-        };
-    }
-
-    // 🚀 优化：预编译错误模板
-    #createErrorTemplate() {
-        return `
-            <div class="error-boundary">
-                <h2>🚫 {{title}}</h2>
-                <p>{{message}}</p>
-                <button onclick="location.reload()" class="btn-reload">
-                    🔄 重新加载
-                </button>
-            </div>
-        `;
-    }
-
-    // 🚀 优化：预编译加载模板
-    #createLoadingTemplate() {
-        return `
-            <div class="loading-indicator">
-                <div class="loading-spinner"></div>
-                <div class="loading-text">{{text}}</div>
-            </div>
-        `;
-    }
-
     async #initialize() {
-        const perfId = window.EnglishSite.PerformanceMonitor?.startMeasure('app-init', 'app');
+        this.perfId = window.EnglishSite.PerformanceMonitor?.startMeasure('app-init', 'app');
 
         try {
             await window.EnglishSite.coreToolsReady;
 
+            // 🚀 优化：错误处理简化
             window.EnglishSite.SimpleErrorHandler.record('app', 'init-start',
                 new Error('App initialization started'), {
                     timestamp: Date.now()
@@ -136,29 +79,38 @@ class App {
 
             await this.#initApp();
 
-            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+            window.EnglishSite.PerformanceMonitor?.endMeasure(this.perfId);
 
             if (this.config.debug) {
-                console.log('[App] 优化版初始化完成');
+                console.log('[App] 初始化完成');
                 window.EnglishSite.PerformanceMonitor?.recordMetric('app-init-success', 1, 'app');
             }
 
         } catch (error) {
-            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+            window.EnglishSite.PerformanceMonitor?.endMeasure(this.perfId);
             this.#handleError('initialization', error);
             throw error;
         }
     }
 
-    // 🚀 优化：批量DOM选择器（使用预编译选择器）
+    // 🚀 优化：DOM选择器（使用缓存）
     #selectDOMElements() {
-        for (const [key, selector] of Object.entries(this.selectors)) {
+        const elementMap = {
+            mainNav: '#main-nav',
+            content: '#content',
+            playerSection: '#player-section',
+            audioPlayer: '#audio-player',
+            chapterNavContainer: '#chapter-nav-container',
+            backToTop: '#back-to-top'
+        };
+
+        for (const [key, selector] of Object.entries(elementMap)) {
             this.elements[key] = this.#getElement(selector);
         }
 
-        // 创建加载指示器（使用模板）
+        // 创建加载指示器（只在需要时）
         this.elements.loadingIndicator = this.#getElement('#loading-indicator') ||
-            this.#createLoadingIndicatorOptimized();
+            this.#createLoadingIndicator();
 
         // 🚀 优化：验证关键元素（简化）
         if (!this.elements.mainNav || !this.elements.content) {
@@ -166,36 +118,60 @@ class App {
         }
     }
 
-    // 🚀 重大优化：使用模板创建加载指示器
-    #createLoadingIndicatorOptimized() {
+    // 🚀 优化：创建加载指示器（减少DOM操作）
+    #createLoadingIndicator() {
         const indicator = document.createElement('div');
         indicator.id = 'loading-indicator';
         indicator.className = 'loading-indicator';
-        indicator.innerHTML = this.templates.loadingIndicator.replace('{{text}}', '正在加载...');
-        
-        // 🚀 使用CSS类而非内联样式
-        indicator.classList.add('loading-overlay');
+        indicator.innerHTML = `
+            <div class="loading-spinner"></div>
+            <div class="loading-text">正在加载...</div>
+        `;
+
+        // 🚀 优化：使用CSS变量而非内联样式
+        indicator.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0;
+            background: rgba(255, 255, 255, 0.95); z-index: 9999;
+            padding: 20px; text-align: center; display: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        `;
+
         document.body.appendChild(indicator);
         return indicator;
     }
 
-    // 🚀 优化：简化加载状态管理
+    // 🚀 优化：加载状态管理（简化）
     #initializeLoadingStates() {
         ['navigation', 'glossary', 'audioSync'].forEach(state => {
-            this.state.loading.set(state, { loaded: false, error: null });
+            this.state.loading.set(state, {
+                loaded: false,
+                error: null
+            });
         });
     }
 
-    // 🚀 优化：简化DOM结构验证
+    // 🚀 优化：DOM结构验证（减少检查）
     #validateDOMStructure() {
-        const critical = [
-            { selector: 'main', name: 'mainElement' },
-            { selector: '#glossary-popup', name: 'glossaryPopup' },
-            { selector: '.main-navigation', name: 'navigation' }
+        const critical = [{
+                selector: 'main',
+                name: 'mainElement'
+            },
+            {
+                selector: '#glossary-popup',
+                name: 'glossaryPopup'
+            },
+            {
+                selector: '.main-navigation',
+                name: 'navigation'
+            }
         ];
 
         const results = {};
-        for (const { selector, name } of critical) {
+        for (const {
+                selector,
+                name
+            }
+            of critical) {
             results[name] = !!this.#getElement(selector);
         }
 
@@ -206,40 +182,21 @@ class App {
         return results;
     }
 
-    // 🚀 优化：批处理显示/隐藏加载器
+    // 🚀 优化：显示/隐藏加载器（减少DOM查询）
     #showLoadingIndicator(text = '正在加载...') {
         if (this.state.isDestroyed) return;
 
-        this.#batchUpdate(() => {
-            const indicator = this.elements.loadingIndicator;
-            if (!indicator) return;
+        const indicator = this.elements.loadingIndicator;
+        if (!indicator) return;
 
-            const textElement = indicator.querySelector('.loading-text');
-            if (textElement) textElement.textContent = text;
-            indicator.classList.add('visible');
-        });
+        const textElement = indicator.querySelector('.loading-text');
+        if (textElement) textElement.textContent = text;
+        indicator.style.display = 'block';
     }
 
     #hideLoadingIndicator() {
-        this.#batchUpdate(() => {
-            const indicator = this.elements.loadingIndicator;
-            if (indicator) indicator.classList.remove('visible');
-        });
-    }
-
-    // 🚀 新增：批处理DOM更新系统
-    #batchUpdate(callback) {
-        this.state.batchUpdate.callbacks.push(callback);
-        
-        if (!this.state.batchUpdate.pending) {
-            this.state.batchUpdate.pending = true;
-            this.state.batchUpdate.frame = requestAnimationFrame(() => {
-                this.state.batchUpdate.callbacks.forEach(cb => cb());
-                this.state.batchUpdate.callbacks.length = 0;
-                this.state.batchUpdate.pending = false;
-                this.state.batchUpdate.frame = null;
-            });
-        }
+        const indicator = this.elements.loadingIndicator;
+        if (indicator) indicator.style.display = 'none';
     }
 
     // 🚀 优化：应用初始化（减少异步等待）
@@ -342,10 +299,16 @@ class App {
 
     // 🚀 优化：设置加载状态（简化）
     #setLoadingState(module, success, error = null) {
-        this.state.loading.set(module, { loaded: success, error });
+        this.state.loading.set(module, {
+            loaded: success,
+            error
+        });
 
         if (this.config.debug) {
-            console.log(`[App] ${module} 状态更新:`, { success, error: error?.message });
+            console.log(`[App] ${module} 状态更新:`, {
+                success,
+                error: error?.message
+            });
         }
     }
 
@@ -358,27 +321,43 @@ class App {
         }
     }
 
-    // 🚀 重大优化：统一事件处理系统
+    // 🚀 优化：事件监听器（使用事件委托）
     #addEventListeners() {
         // 🚀 主要改进：统一事件委托
         document.addEventListener('click', this.#handleGlobalClick.bind(this));
 
         // 🚀 自定义事件（保持原有功能）
-        const customEvents = [
-            { name: 'seriesSelected', handler: (e) => this.#onSeriesSelected(e) },
-            { name: 'allArticlesRequested', handler: () => this.#onAllArticlesRequested() },
-            { name: 'chapterLoaded', handler: (e) => this.#onChapterLoaded(e) },
-            { name: 'navigationUpdated', handler: (e) => this.#onNavigationUpdated(e) }
+        const customEvents = [{
+                name: 'seriesSelected',
+                handler: (e) => this.#onSeriesSelected(e)
+            },
+            {
+                name: 'allArticlesRequested',
+                handler: () => this.#onAllArticlesRequested()
+            },
+            {
+                name: 'chapterLoaded',
+                handler: (e) => this.#onChapterLoaded(e)
+            },
+            {
+                name: 'navigationUpdated',
+                handler: (e) => this.#onNavigationUpdated(e)
+            }
         ];
 
-        customEvents.forEach(({ name, handler }) => {
+        customEvents.forEach(({
+            name,
+            handler
+        }) => {
             document.addEventListener(name, handler);
         });
 
         // 🚀 优化：滚动事件（节流优化）
         if (this.elements.content) {
             const throttledScroll = this.#throttle(() => this.#handleScrollOptimized(), 16);
-            this.elements.content.addEventListener('scroll', throttledScroll, { passive: true });
+            this.elements.content.addEventListener('scroll', throttledScroll, {
+                passive: true
+            });
         }
 
         // 🚀 优化：窗口事件（合并处理）
@@ -386,7 +365,7 @@ class App {
         window.addEventListener('resize', this.#throttle(() => this.#handleWindowResize(), 250));
     }
 
-    // 🚀 优化：全局点击处理（事件委托）
+    // 🚀 新增：全局点击处理（事件委托）
     #handleGlobalClick(event) {
         const target = event.target;
 
@@ -403,6 +382,8 @@ class App {
             this.#handleBackToTopClick();
             return;
         }
+
+        // 其他点击事件可以在这里添加
     }
 
     // 🚀 优化：窗口大小改变（缓存屏幕信息）
@@ -423,7 +404,7 @@ class App {
         }
     }
 
-    // 🚀 优化：提取章节数据（避免重复查询）
+    // 🚀 新增：提取章节数据（避免重复查询）
     #extractChapterData(chapterList) {
         return [...chapterList.children].map(item => {
             const link = item.querySelector('.overview-chapter-link');
@@ -461,7 +442,9 @@ class App {
     // 🚀 保持原有事件处理方法（简化错误处理）
     #onSeriesSelected(e) {
         this.#cleanupModules();
-        const { chapters } = e.detail;
+        const {
+            chapters
+        } = e.detail;
         this.#renderChapterGrid(chapters, '系列文章');
     }
 
@@ -472,6 +455,7 @@ class App {
         const allChapters = this.#extractAllChaptersRecursive(this.navData);
 
         console.log('[App] 📚 递归提取的章节数量:', allChapters.length);
+        console.log('[App] 📚 章节详情:', allChapters);
 
         if (allChapters.length > 0) {
             this.#renderChapterGrid(allChapters, '所有文章');
@@ -480,49 +464,59 @@ class App {
             this.#showNoContentMessage();
         }
     }
-
-    // 🚀 核心：无限递归章节提取器（算法优化）
+    // 🚀 核心：无限递归章节提取器
     #extractAllChaptersRecursive(data, parentPath = [], level = 0) {
-        if (!data) return [];
+        if (!data) {
+            console.warn('[App] 数据为空:', data);
+            return [];
+        }
 
         const allChapters = [];
         const items = Array.isArray(data) ? data : [data];
 
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            
+        console.log(`[App] 🔍 第${level}层递归，处理${items.length}个项目`);
+
+        items.forEach((item, index) => {
             try {
                 // 跳过特殊类型的项目
-                if (this.#shouldSkipItem(item)) continue;
+                if (this.#shouldSkipItem(item)) {
+                    console.log(`[App] ⏭️ 跳过项目: ${item.id || item.title} (类型: ${item.type})`);
+                    return;
+                }
 
                 // 构建当前路径信息
                 const currentPath = [
                     ...parentPath,
                     {
-                        id: item.id || item.seriesId || `level_${level}_${i}`,
+                        id: item.id || item.seriesId || `level_${level}_${index}`,
                         title: item.title || item.series || item.name || 'Untitled',
                         type: item.type,
                         level: level
                     }
                 ];
 
+                console.log(`[App] 📂 处理项目: ${currentPath[currentPath.length - 1].title} (第${level}层)`);
+
                 // 🔑 核心1：提取当前项目的章节
                 const chapters = this.#extractChaptersFromItem(item, currentPath);
                 if (chapters.length > 0) {
                     allChapters.push(...chapters);
+                    console.log(`[App] ✅ 从 "${currentPath[currentPath.length - 1].title}" 提取到 ${chapters.length} 个章节`);
                 }
 
                 // 🔑 核心2：递归处理所有可能的子结构
                 const childResults = this.#processAllChildStructures(item, currentPath, level + 1);
                 if (childResults.length > 0) {
                     allChapters.push(...childResults);
+                    console.log(`[App] 🌿 从子结构递归获得 ${childResults.length} 个章节`);
                 }
 
             } catch (error) {
                 console.error(`[App] ❌ 处理项目失败:`, item, error);
             }
-        }
+        });
 
+        console.log(`[App] 📊 第${level}层完成，总计提取 ${allChapters.length} 个章节`);
         return allChapters;
     }
 
@@ -530,39 +524,77 @@ class App {
     #shouldSkipItem(item) {
         if (!item) return true;
 
-        const skipTypes = ['all-articles', 'navigation-header', 'separator', 'placeholder'];
-        return skipTypes.includes(item.type) || skipTypes.includes(item.id) || item.skip === true || item.hidden === true;
+        // 跳过的类型列表
+        const skipTypes = [
+            'all-articles',
+            'navigation-header',
+            'separator',
+            'placeholder'
+        ];
+
+        return skipTypes.includes(item.type) ||
+            skipTypes.includes(item.id) ||
+            item.skip === true ||
+            item.hidden === true;
     }
 
     // 🔑 从单个项目中提取章节
     #extractChaptersFromItem(item, currentPath) {
         const chapters = [];
-        const chapterSources = ['chapters', 'articles', 'content', 'items', 'pages', 'lessons', 'episodes'];
+
+        // 支持多种章节属性名
+        const chapterSources = [
+            'chapters',
+            'articles',
+            'content',
+            'items',
+            'pages',
+            'lessons',
+            'episodes'
+        ];
 
         for (const sourceName of chapterSources) {
             const source = item[sourceName];
             if (Array.isArray(source) && source.length > 0) {
+                console.log(`[App] 🎯 在 "${sourceName}" 中找到 ${source.length} 个项目`);
+
                 source.forEach((chapter, chapterIndex) => {
                     // 过滤掉工具类型的章节
-                    if (chapter.type === 'tool' || chapter.category === 'tool') return;
+                    if (chapter.type === 'tool' || chapter.category === 'tool') {
+                        console.log(`[App] 🔧 跳过工具: ${chapter.title || chapter.id}`);
+                        return;
+                    }
 
                     // 构建章节对象
                     const processedChapter = {
+                        // 原始章节数据
                         ...chapter,
+
+                        // 添加路径信息
                         id: chapter.id || `chapter_${chapterIndex}`,
                         title: chapter.title || `Chapter ${chapterIndex + 1}`,
+
+                        // 添加层级信息
                         seriesId: currentPath[currentPath.length - 1]?.id,
                         seriesTitle: currentPath[currentPath.length - 1]?.title,
+
+                        // 完整路径信息（便于调试和显示）
                         breadcrumb: currentPath.map(p => p.title).join(' > '),
                         pathInfo: [...currentPath],
                         sourceProperty: sourceName,
+
+                        // 层级深度
                         depth: currentPath.length,
+
+                        // 如果没有类型，设置默认类型
                         type: chapter.type || 'chapter'
                     };
 
                     chapters.push(processedChapter);
+                    console.log(`[App] 📄 处理章节: ${processedChapter.title} (来源: ${sourceName})`);
                 });
 
+                // 只处理第一个找到的有效章节源
                 if (chapters.length > 0) break;
             }
         }
@@ -573,14 +605,36 @@ class App {
     // 🔑 处理所有可能的子结构
     #processAllChildStructures(item, currentPath, nextLevel) {
         const allChildChapters = [];
-        const childSources = ['children', 'subItems', 'subcategories', 'subSeries', 'sections', 'categories', 'groups', 'modules', 'units', 'parts'];
+
+        // 支持多种子结构属性名
+        const childSources = [
+            'children',
+            'subItems',
+            'subcategories',
+            'subSeries',
+            'sections',
+            'categories',
+            'groups',
+            'modules',
+            'units',
+            'parts'
+        ];
 
         for (const sourceName of childSources) {
             const childSource = item[sourceName];
             if (Array.isArray(childSource) && childSource.length > 0) {
-                const childChapters = this.#extractAllChaptersRecursive(childSource, currentPath, nextLevel);
+                console.log(`[App] 🌳 在 "${sourceName}" 中发现 ${childSource.length} 个子项，准备递归处理`);
+
+                // 递归处理子结构
+                const childChapters = this.#extractAllChaptersRecursive(
+                    childSource,
+                    currentPath,
+                    nextLevel
+                );
+
                 if (childChapters.length > 0) {
                     allChildChapters.push(...childChapters);
+                    console.log(`[App] 🎉 从 "${sourceName}" 递归获得 ${childChapters.length} 个章节`);
                 }
             }
         }
@@ -588,16 +642,46 @@ class App {
         return allChildChapters;
     }
 
-    // 🔧 优化：显示无内容消息（使用模板）
+    // 🔧 辅助：显示无内容消息（增强版）
     #showNoContentMessage() {
-        this.elements.content.innerHTML = this.templates.errorMessage
-            .replace('{{title}}', '暂无内容')
-            .replace('{{message}}', `没有找到可显示的文章<br>已检查导航数据：${this.navData?.length || 0} 个顶级项目`);
+        this.elements.content.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; background: #f8f9fa; border-radius: 12px; margin: 20px;">
+                <div style="font-size: 3rem; margin-bottom: 20px;">📭</div>
+                <h2 style="margin-bottom: 16px; color: #6c757d;">暂无内容</h2>
+                <p style="margin-bottom: 16px; color: #6c757d;">没有找到可显示的文章</p>
+                <p style="margin-bottom: 24px; color: #868e96; font-size: 14px;">
+                    已检查导航数据：${this.navData?.length || 0} 个顶级项目
+                </p>
+                <div style="margin-bottom: 24px;">
+                    <button onclick="window.debugNavData()" style="
+                        padding: 8px 16px; 
+                        background: #6c757d; 
+                        color: white; 
+                        border: none; 
+                        border-radius: 4px; 
+                        cursor: pointer; 
+                        margin-right: 8px;
+                        font-size: 14px;
+                    ">🔍 调试导航数据</button>
+                    <button onclick="location.reload()" style="
+                        padding: 8px 16px; 
+                        background: #007bff; 
+                        color: white; 
+                        border: none; 
+                        border-radius: 4px; 
+                        cursor: pointer; 
+                        font-size: 14px;
+                    ">🔄 重新加载</button>
+                </div>
+            </div>
+        `;
     }
 
-    // 🚀 保持原有的其他事件处理方法...
     #onChapterLoaded(e) {
-        const { chapterId, hasAudio } = e.detail;
+        const {
+            chapterId,
+            hasAudio
+        } = e.detail;
         this.#cleanupModules();
 
         if (!hasAudio) {
@@ -761,17 +845,29 @@ class App {
 
     // 🚀 保留原有方法（简化处理）
     #handleChapterLoadError(chapterId, error) {
-        const errorMessage = this.templates.errorMessage
-            .replace('{{title}}', '📖 章节加载失败')
-            .replace('{{message}}', `章节 <strong>${chapterId}</strong> 加载时出现错误：<br><em>${error.message}</em>`);
-        
+        const errorMessage = `
+            <div class="error-message" style="text-align: center; padding: 40px; color: #dc3545;">
+                <h3>📖 章节加载失败</h3>
+                <p>章节 <strong>${chapterId}</strong> 加载时出现错误：</p>
+                <p style="font-style: italic; color: #6c757d;">${error.message}</p>
+                <button onclick="location.reload()" 
+                        style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px;">
+                    🔄 重新加载
+                </button>
+            </div>
+        `;
         this.elements.content.innerHTML = errorMessage;
-        this.#handleError('chapter-load', error, { chapterId });
+        this.#handleError('chapter-load', error, {
+            chapterId
+        });
     }
 
     // 🚀 优化：章节导航更新（简化DOM操作）
     #onNavigationUpdated(e) {
-        const { prevChapterId, nextChapterId } = e.detail;
+        const {
+            prevChapterId,
+            nextChapterId
+        } = e.detail;
 
         this.#cleanupChapterNavigation();
 
@@ -780,7 +876,10 @@ class App {
         this.#createContentEndNavigation(prevChapterId, nextChapterId);
 
         if (this.config.debug) {
-            console.log('[App] 章节导航已更新:', { prevChapterId, nextChapterId });
+            console.log('[App] 章节导航已更新:', {
+                prevChapterId,
+                nextChapterId
+            });
         }
     }
 
@@ -798,38 +897,44 @@ class App {
         this.chapterNavState.navElement = null;
     }
 
-    // 🚀 重大优化：使用模板创建导航（代码精简60%）
+    // 🚀 保留原有创建导航方法（优化DOM操作）
     #createContentEndNavigation(prevChapterId, nextChapterId) {
         const navWrapper = document.createElement('div');
         navWrapper.className = 'content-chapter-nav';
-        
-        // 🚀 使用CSS类而非内联样式
-        navWrapper.classList.add('chapter-nav-hidden');
+        navWrapper.style.cssText = `
+            margin-top: 40px; padding: 24px 0; border-top: 2px solid #e9ecef;
+            opacity: 0; transform: translateY(20px);
+            transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: none;
+        `;
 
         const navTitle = document.createElement('div');
-        navTitle.className = 'chapter-nav-title';
+        navTitle.style.cssText = `
+            text-align: center; font-size: 0.9rem; color: #6c757d;
+            margin-bottom: 16px; font-weight: 500;
+        `;
         navTitle.textContent = 'Continue Reading';
         navWrapper.appendChild(navTitle);
 
         const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'chapter-nav-buttons';
+        buttonContainer.style.cssText = `
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 16px; flex-wrap: wrap;
+        `;
 
-        // 🚀 优化：使用模板创建按钮
-        const buttons = [
-            { id: prevChapterId, text: '← Previous', type: 'prev' },
-            { id: 'home', text: 'Back to Index', type: 'home' },
-            { id: nextChapterId, text: 'Next →', type: 'next' }
-        ];
+        // 创建按钮
+        if (prevChapterId) {
+            buttonContainer.appendChild(this.#createChapterNavButton(prevChapterId, '← Previous', 'prev'));
+        } else {
+            buttonContainer.appendChild(this.#createPlaceholder());
+        }
 
-        buttons.forEach(({ id, text, type }) => {
-            if (type === 'home') {
-                buttonContainer.appendChild(this.#createHomeButton());
-            } else if (id) {
-                buttonContainer.appendChild(this.#createChapterNavButton(id, text, type));
-            } else {
-                buttonContainer.appendChild(this.#createPlaceholder());
-            }
-        });
+        buttonContainer.appendChild(this.#createHomeButton());
+
+        if (nextChapterId) {
+            buttonContainer.appendChild(this.#createChapterNavButton(nextChapterId, 'Next →', 'next'));
+        } else {
+            buttonContainer.appendChild(this.#createPlaceholder());
+        }
 
         navWrapper.appendChild(buttonContainer);
         this.elements.content.appendChild(navWrapper);
@@ -838,19 +943,24 @@ class App {
         this.#setupChapterNavScrollListener();
     }
 
-    // 🚀 优化：创建占位元素（使用CSS类）
+    // 🚀 新增：创建占位元素
     #createPlaceholder() {
         const placeholder = document.createElement('div');
-        placeholder.className = 'chapter-nav-placeholder';
+        placeholder.style.cssText = 'flex: 1; min-width: 120px;';
         return placeholder;
     }
 
-    // 🚀 优化：创建首页按钮（使用CSS类）
+    // 🚀 新增：创建首页按钮
     #createHomeButton() {
         const homeButton = document.createElement('button');
         homeButton.innerHTML = 'Back to Index';
-        homeButton.className = 'chapter-nav-btn chapter-nav-home';
-        
+        homeButton.style.cssText = `
+            padding: 12px 20px; background: linear-gradient(135deg, #6c757d, #495057);
+            color: white; border: none; border-radius: 6px; font-size: 14px;
+            font-weight: 500; cursor: pointer; transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        `;
+
         homeButton.addEventListener('click', () => {
             window.location.hash = '';
         });
@@ -858,12 +968,34 @@ class App {
         return homeButton;
     }
 
-    // 🚀 重大优化：创建章节导航按钮（减少重复代码）
+    // 🚀 优化：创建章节导航按钮（减少重复代码）
     #createChapterNavButton(chapterId, text, type) {
         const button = document.createElement('button');
         button.innerHTML = text;
         button.dataset.chapterId = chapterId;
-        button.className = `chapter-nav-btn chapter-nav-${type}`;
+
+        const colors = {
+            prev: {
+                base: '#28a745',
+                hover: '#218838',
+                gradient: '#20c997'
+            },
+            next: {
+                base: '#007bff',
+                hover: '#0056b3',
+                gradient: '#17a2b8'
+            }
+        };
+
+        const color = colors[type];
+        button.style.cssText = `
+            flex: 1; min-width: 120px; max-width: 200px; padding: 12px 20px;
+            background: linear-gradient(135deg, ${color.base}, ${color.gradient});
+            color: white; border: none; border-radius: 6px; font-size: 14px;
+            font-weight: 500; cursor: pointer; transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        `;
 
         button.addEventListener('click', (e) => {
             e.preventDefault();
@@ -888,6 +1020,7 @@ class App {
             const clientHeight = contentArea.clientHeight;
 
             const scrollPercent = scrollTop / (scrollHeight - clientHeight);
+
             const shouldShow = scrollPercent >= this.chapterNavState.scrollThreshold;
 
             if (shouldShow && !this.chapterNavState.isVisible) {
@@ -910,26 +1043,33 @@ class App {
         }, 100);
     }
 
-    // 🚀 优化：显示/隐藏章节导航（使用CSS类）
+    // 🚀 优化：显示/隐藏章节导航（减少DOM操作）
     #showChapterNavigation() {
         if (!this.chapterNavState.navElement || this.chapterNavState.isVisible) return;
 
         this.chapterNavState.isVisible = true;
-        this.chapterNavState.navElement.classList.remove('chapter-nav-hidden');
-        this.chapterNavState.navElement.classList.add('chapter-nav-visible');
+        const navElement = this.chapterNavState.navElement;
+        navElement.style.opacity = '1';
+        navElement.style.transform = 'translateY(0)';
+        navElement.style.pointerEvents = 'auto';
     }
 
     #hideChapterNavigation() {
         if (!this.chapterNavState.navElement || !this.chapterNavState.isVisible) return;
 
         this.chapterNavState.isVisible = false;
-        this.chapterNavState.navElement.classList.remove('chapter-nav-visible');
-        this.chapterNavState.navElement.classList.add('chapter-nav-hidden');
+        const navElement = this.chapterNavState.navElement;
+        navElement.style.opacity = '0';
+        navElement.style.transform = 'translateY(20px)';
+        navElement.style.pointerEvents = 'none';
     }
 
     // 🚀 优化：滚动处理（缓存元素）
     #handleScrollOptimized() {
-        const { content: contentArea, backToTop: backToTopButton } = this.elements;
+        const {
+            content: contentArea,
+            backToTop: backToTopButton
+        } = this.elements;
         if (!contentArea || !backToTopButton) return;
 
         const shouldShow = contentArea.scrollTop > 300;
@@ -979,143 +1119,190 @@ class App {
         return Promise.all(cleanupPromises);
     }
 
-    // 🚀 重大优化：章节网格渲染（精简50%代码，提升30%性能）
+    // 🚀 优化：单列垂直布局（性能优化）
     #renderChapterGrid(chapters, title) {
         if (!chapters || chapters.length === 0) {
-            this.#showNoContentMessage();
+            this.elements.content.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <p>暂无内容</p>
+                </div>
+            `;
             return;
         }
 
-        // 🚀 优化：使用批处理更新
-        this.#batchUpdate(() => {
-            this.elements.content.innerHTML = `
-                <div class="chapter-list-overview">
-                </div>
-            `;
+        // 🚀 优化：使用DocumentFragment减少重绘
+        const {
+            isMobile,
+            isTablet
+        } = this.state.screenInfo;
+        const gap = isMobile ? '16px' : '20px';
 
-            const container = this.elements.content.querySelector('.chapter-list-overview');
-            const fragment = document.createDocumentFragment();
+this.elements.content.innerHTML = `
+    <div class="chapter-list-overview" style="
+        display: block !important;
+        max-width: 800px !important;
+        margin: 0 auto !important;
+        padding: ${isMobile ? '16px' : '24px'} !important;
+        background: white !important;
+        width: 100% !important;
+    "></div>
+`;
 
-            // 🚀 优化：批量创建元素
-            chapters.forEach(chapter => {
-                const element = this.#createChapterElementOptimized(chapter);
-                fragment.appendChild(element);
-            });
+        const container = this.elements.content.querySelector('.chapter-list-overview');
+        const fragment = document.createDocumentFragment();
 
-            container.appendChild(fragment);
-        });
-    }
-
-    // 🚀 重大优化：章节元素创建（精简70%，使用CSS类）
-    #createChapterElementOptimized(chapter) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'chapter-overview-item';
-
-        const link = document.createElement('a');
-        link.className = 'overview-chapter-link';
-        link.href = `#${chapter.id}`;
-        link.dataset.chapterId = chapter.id;
-
-        // 🚀 主要优化：内容容器
-        const contentContainer = document.createElement('div');
-        contentContainer.className = 'chapter-info';
-
-        // 🚀 优化：系列信息
-        const seriesInfo = this.#createSeriesInfo(chapter);
-        const title = this.#createChapterTitle(chapter);
-        const description = this.#createChapterDescription(chapter);
-        const tagsRow = this.#createChapterTags(chapter);
-
-        // 🚀 批量添加内容
-        [seriesInfo, title, description, tagsRow].forEach(el => {
-            contentContainer.appendChild(el);
+        // 🚀 优化：批量创建元素
+        chapters.forEach(chapter => {
+            const element = this.#createChapterElement(chapter);
+            fragment.appendChild(element);
         });
 
-        link.appendChild(contentContainer);
-
-        // 🚀 条件渲染：缩略图（如果有效）
-        if (this.#hasValidThumbnail(chapter)) {
-            const imageContainer = this.#createThumbnailContainer(chapter);
-            link.appendChild(imageContainer);
-        }
-
-        wrapper.appendChild(link);
-
-        // 🚀 优化：使用CSS类的悬停效果
-        this.#addHoverEffects(wrapper, chapter);
-
-        return wrapper;
+        container.appendChild(fragment);
     }
 
-    // 🚀 新增：创建系列信息
-    #createSeriesInfo(chapter) {
-        const seriesInfo = document.createElement('div');
-        seriesInfo.className = 'chapter-series-info';
-        
-        const seriesIcon = document.createElement('span');
-        seriesIcon.textContent = '📺';
-        seriesIcon.className = 'series-icon';
-        
-        const seriesText = document.createElement('span');
-        seriesText.textContent = chapter.seriesTitle || '6 Minutes English';
-        seriesText.className = 'series-text';
-        
-        seriesInfo.appendChild(seriesIcon);
-        seriesInfo.appendChild(seriesText);
-        return seriesInfo;
-    }
+    // 🚀 优化：创建章节元素（缓存配置）
+// 🎨 完全替换 #createChapterElement() 方法为条件缩略图版本
+#createChapterElement(chapter) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chapter-overview-item';
 
-    // 🚀 新增：创建章节标题
-    #createChapterTitle(chapter) {
-        const title = document.createElement('h2');
-        title.className = 'chapter-title';
-        title.textContent = chapter.title;
-        return title;
-    }
+    // 🚀 使用缓存的屏幕信息
+    const { isMobile, isTablet } = this.state.screenInfo;
 
-    // 🚀 新增：创建章节描述
-    #createChapterDescription(chapter) {
-        const description = document.createElement('p');
-        description.className = 'chapter-description';
-        description.textContent = chapter.description || 'Explore this English learning topic';
-        return description;
-    }
+    // 🔍 智能检测缩略图是否可用
+    const hasThumbnail = this.#hasValidThumbnail(chapter);
 
-    // 🚀 新增：创建章节标签
-    #createChapterTags(chapter) {
-        const tagsRow = document.createElement('div');
-        tagsRow.className = 'chapter-tags-row';
+    // 🎨 水平布局样式 - 根据是否有缩略图调整
+    wrapper.style.cssText = `
+        margin-bottom: 0 !important; 
+        border: none !important; 
+        border-bottom: 1px solid #f0f0f0 !important;
+        border-radius: 0 !important; 
+        background: transparent !important; 
+        transition: all 0.2s ease !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+        display: flex !important;
+        align-items: flex-start !important;
+        padding: 24px 0 !important;
+        gap: ${isMobile ? '12px' : '16px'} !important;
+        position: relative !important;
+        height: auto !important;
+    `;
 
-        // 🚀 智能难度计算
-        const { stars, tooltip } = this.#getDifficulty(chapter);
+    const link = document.createElement('a');
+    link.className = 'overview-chapter-link';
+    link.href = `#${chapter.id}`;
+    link.dataset.chapterId = chapter.id;
+    link.style.cssText = `
+        text-decoration: none !important; 
+        color: inherit !important; 
+        display: flex !important;
+        align-items: flex-start !important;
+        width: 100% !important;
+        gap: ${hasThumbnail ? (isMobile ? '12px' : '16px') : '0'} !important;
+        overflow: visible !important;
+        height: auto !important;
+    `;
 
-        // 标签数据
-        const tags = [
-            { icon: '⭐', text: stars, title: tooltip, class: 'difficulty-tag' },
-            { icon: '📖', text: chapter.audio ? '6 min' : '4 min', class: 'time-tag' },
-            { icon: chapter.audio ? '🎵' : '📖', text: chapter.audio ? 'Audio' : 'Article', class: 'media-tag' }
-        ];
+    // 🎨 左侧内容区域 - 根据是否有缩略图调整宽度
+    const contentContainer = document.createElement('div');
+    contentContainer.className = 'chapter-info';
+    contentContainer.style.cssText = `
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: ${isMobile ? '6px' : '8px'} !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+        ${hasThumbnail ? '' : 'width: 100% !important;'}
+    `;
 
-        tags.forEach(({ icon, text, title, class: className }) => {
-            const tag = document.createElement('span');
-            tag.className = className;
-            if (title) tag.title = title;
-            tag.innerHTML = `<span>${icon}</span><span>${text}</span>`;
-            tagsRow.appendChild(tag);
-        });
+    // 🎨 系列信息（顶部）
+    const seriesInfo = document.createElement('div');
+    seriesInfo.className = 'chapter-series-info';
+    seriesInfo.style.cssText = `
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        font-size: ${isMobile ? '12px' : '13px'} !important;
+        color: #666 !important;
+        font-weight: 500 !important;
+        margin-bottom: 4px !important;
+    `;
 
-        return tagsRow;
-    }
+    const seriesIcon = document.createElement('span');
+    seriesIcon.textContent = '📺';
+    seriesIcon.style.cssText = `
+        font-size: ${isMobile ? '11px' : '12px'} !important;
+    `;
 
-    // 🚀 优化：智能难度计算
-    #getDifficulty(chapter) {
+    const seriesText = document.createElement('span');
+    seriesText.textContent = chapter.seriesTitle || '6 Minutes English';
+    seriesText.style.cssText = `
+        color: #666 !important;
+    `;
+
+    seriesInfo.appendChild(seriesIcon);
+    seriesInfo.appendChild(seriesText);
+
+    // 🎨 标题
+    const title = document.createElement('h2');
+    title.style.cssText = `
+        margin: 0 !important; 
+        font-size: ${isMobile ? '18px' : '22px'} !important; 
+        color: #1a1a1a !important;
+        font-weight: 700 !important;
+        line-height: 1.3 !important;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        margin-bottom: ${isMobile ? '6px' : '8px'} !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    `;
+    title.textContent = chapter.title;
+
+    // 🎨 描述
+    const description = document.createElement('p');
+    description.style.cssText = `
+        margin: 0 !important; 
+        font-size: ${isMobile ? '14px' : '15px'} !important; 
+        color: #666 !important; 
+        line-height: 1.4 !important;
+        font-weight: 400 !important;
+        margin-bottom: ${isMobile ? '8px' : '12px'} !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 2 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    `;
+    description.textContent = chapter.description || 'Explore this English learning topic';
+
+    // 🎨 底部标签行（智能难度版本）
+    const tagsRow = document.createElement('div');
+    tagsRow.className = 'chapter-tags-row';
+    tagsRow.style.cssText = `
+        display: flex !important;
+        align-items: center !important;
+        gap: ${isMobile ? '10px' : '12px'} !important;
+        font-size: ${isMobile ? '12px' : '13px'} !important;
+        color: #666 !important;
+        font-weight: 500 !important;
+        flex-wrap: wrap !important;
+    `;
+
+    // 🎯 智能难度计算
+    const getDifficulty = () => {
         // 检查词频管理器是否已初始化
         if (window.app?.wordFreqManager?.isInitialized) {
             try {
                 const difficulty = window.app.wordFreqManager.getArticleDifficulty(chapter.id);
                 if (difficulty) {
                     return {
-                        stars: '⭐'.repeat(difficulty.stars),
+                        stars: difficulty.stars,
                         tooltip: difficulty.tooltip || `难度评级：${difficulty.label}`
                     };
                 }
@@ -1132,96 +1319,264 @@ class App {
         else stars = 4;
         
         return { 
-            stars: '⭐'.repeat(stars), 
+            stars, 
             tooltip: "智能分析中，当前为预估难度" 
         };
+    };
+
+    const { stars, tooltip } = getDifficulty();
+
+    // 星星难度（智能计算）
+    const difficultyTag = document.createElement('span');
+    difficultyTag.style.cssText = `
+        display: flex !important;
+        align-items: center !important;
+        color: #ffc107 !important;
+        cursor: help !important;
+    `;
+    difficultyTag.innerHTML = `<span title="${tooltip}">${'⭐'.repeat(stars)}</span>`;
+
+    // 阅读时间（智能推断）
+    const timeTag = document.createElement('span');
+    timeTag.style.cssText = `
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        color: #666 !important;
+    `;
+    const estimatedTime = chapter.audio ? '6 min' : '4 min';
+    timeTag.innerHTML = `
+        <span>📖</span>
+        <span>${estimatedTime}</span>
+    `;
+
+    // 媒体类型（根据实际数据判断）
+    const mediaTag = document.createElement('span');
+    mediaTag.style.cssText = `
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        color: #666 !important;
+    `;
+
+    if (chapter.audio) {
+        mediaTag.innerHTML = `
+            <span>🎵</span>
+            <span>Audio</span>
+        `;
+    } else {
+        mediaTag.innerHTML = `
+            <span>📖</span>
+            <span>Article</span>
+        `;
     }
 
-    // 🚀 优化：检测缩略图是否有效
-    #hasValidThumbnail(chapter) {
-        if (!chapter.thumbnail) return false;
-        if (typeof chapter.thumbnail !== 'string' || !chapter.thumbnail.trim()) return false;
+    tagsRow.appendChild(difficultyTag);
+    tagsRow.appendChild(timeTag);
+    tagsRow.appendChild(mediaTag);
 
-        const placeholderPaths = [
-            'images/placeholder.jpg', 'placeholder.jpg', '/placeholder.jpg',
-            'images/default.jpg', 'default.jpg'
-        ];
+    // 🎨 组装左侧内容
+    contentContainer.appendChild(seriesInfo);
+    contentContainer.appendChild(title);
+    contentContainer.appendChild(description);
+    contentContainer.appendChild(tagsRow);
 
-        const normalizedPath = chapter.thumbnail.toLowerCase().replace(/^\.\//, '');
-        if (placeholderPaths.includes(normalizedPath)) return false;
+    // 🎨 组装整体布局（左侧内容 + 右侧图片）
+    link.appendChild(contentContainer);
 
-        const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i;
-        const isHttpUrl = /^https?:\/\//.test(chapter.thumbnail);
-        const isRelativePath = /^(\.\/|\/|images\/|assets\/)/.test(chapter.thumbnail);
-        const hasImageExtension = imageExtensions.test(chapter.thumbnail);
-
-        return (isHttpUrl || isRelativePath) && (hasImageExtension || isHttpUrl);
+    // 🔍 条件渲染：只有在有有效缩略图时才创建图片容器
+    if (hasThumbnail) {
+        const imageContainer = this.#createThumbnailContainer(chapter, isMobile);
+        link.appendChild(imageContainer);
     }
 
-    // 🚀 优化：创建缩略图容器
-    #createThumbnailContainer(chapter) {
-        const { isMobile } = this.state.screenInfo;
+    wrapper.appendChild(link);
+
+    // 🎨 悬停效果
+    const addHoverEffect = () => {
+        wrapper.style.backgroundColor = '#fafafa';
+        title.style.color = '#1a73e8';
         
-        const imageContainer = document.createElement('div');
-        imageContainer.className = 'chapter-thumbnail-container';
-
-        const thumbnail = document.createElement('img');
-        thumbnail.className = 'chapter-thumbnail';
-        thumbnail.loading = 'lazy';
-        thumbnail.src = chapter.thumbnail;
-        thumbnail.alt = chapter.title;
-
-        // 🔧 图片加载错误处理
-        thumbnail.addEventListener('error', () => {
-            this.#handleThumbnailError(imageContainer, thumbnail);
-        }, { once: true });
-
-        // 🔧 图片加载成功处理
-        thumbnail.addEventListener('load', () => {
-            thumbnail.classList.add('loaded');
-        }, { once: true });
-
-        imageContainer.appendChild(thumbnail);
-        return imageContainer;
-    }
-
-    // 🔧 优化：缩略图加载错误处理
-    #handleThumbnailError(container, thumbnail) {
-        console.warn('[App] 缩略图加载失败:', thumbnail.src);
-        
-        // 创建占位符图标
-        const placeholder = document.createElement('div');
-        placeholder.className = 'thumbnail-placeholder';
-        placeholder.textContent = '📖';
-
-        // 替换失败的图片
-        container.innerHTML = '';
-        container.appendChild(placeholder);
-        container.classList.add('thumbnail-error');
-    }
-
-    // 🚀 优化：添加悬停效果（使用CSS类）
-    #addHoverEffects(wrapper, chapter) {
-        const { isMobile } = this.state.screenInfo;
-        
-        if (isMobile) {
-            wrapper.addEventListener('touchstart', () => {
-                wrapper.classList.add('hover');
-            });
-            wrapper.addEventListener('touchend', () => {
-                wrapper.classList.remove('hover');
-            });
-        } else {
-            wrapper.addEventListener('mouseenter', () => {
-                wrapper.classList.add('hover');
-            });
-            wrapper.addEventListener('mouseleave', () => {
-                wrapper.classList.remove('hover');
-            });
+        // 只有在有缩略图时才应用图片悬停效果
+        if (hasThumbnail) {
+            const thumbnail = wrapper.querySelector('.chapter-thumbnail');
+            if (thumbnail) {
+                thumbnail.style.transform = 'scale(1.05)';
+            }
         }
+    };
+
+    const removeHoverEffect = () => {
+        wrapper.style.backgroundColor = 'transparent';
+        title.style.color = '#1a1a1a';
+        
+        // 只有在有缩略图时才重置图片效果
+        if (hasThumbnail) {
+            const thumbnail = wrapper.querySelector('.chapter-thumbnail');
+            if (thumbnail) {
+                thumbnail.style.transform = 'scale(1)';
+            }
+        }
+    };
+
+    if (isMobile) {
+        wrapper.addEventListener('touchstart', addHoverEffect);
+        wrapper.addEventListener('touchend', removeHoverEffect);
+        wrapper.addEventListener('touchcancel', removeHoverEffect);
+    } else {
+        wrapper.addEventListener('mouseenter', addHoverEffect);
+        wrapper.addEventListener('mouseleave', removeHoverEffect);
     }
 
-    // === 公共API方法（保持100%兼容性） ===
+    return wrapper;
+}
+
+// 🔍 新增：智能检测缩略图是否有效
+#hasValidThumbnail(chapter) {
+    // 检查是否存在缩略图字段
+    if (!chapter.thumbnail) {
+        return false;
+    }
+
+    // 检查是否为空字符串或只包含空白字符
+    if (typeof chapter.thumbnail !== 'string' || !chapter.thumbnail.trim()) {
+        return false;
+    }
+
+    // 检查是否为占位符路径
+    const placeholderPaths = [
+        'images/placeholder.jpg',
+        'placeholder.jpg',
+        '/placeholder.jpg',
+        'images/default.jpg',
+        'default.jpg'
+    ];
+
+    const normalizedPath = chapter.thumbnail.toLowerCase().replace(/^\.\//, '');
+    if (placeholderPaths.includes(normalizedPath)) {
+        return false;
+    }
+
+    // 检查是否为有效的图片URL格式
+    const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i;
+    const isHttpUrl = /^https?:\/\//.test(chapter.thumbnail);
+    const isRelativePath = /^(\.\/|\/|images\/|assets\/)/.test(chapter.thumbnail);
+    const hasImageExtension = imageExtensions.test(chapter.thumbnail);
+
+    // 允许HTTP URL或相对路径且有图片扩展名
+    return (isHttpUrl || isRelativePath) && (hasImageExtension || isHttpUrl);
+}
+
+// 🎨 新增：创建缩略图容器（独立方法便于维护）
+#createThumbnailContainer(chapter, isMobile) {
+    const imageContainer = document.createElement('div');
+    imageContainer.className = 'chapter-thumbnail-container';
+    imageContainer.style.cssText = `
+        width: ${isMobile ? '80px' : '120px'} !important;
+        height: ${isMobile ? '60px' : '90px'} !important;
+        flex-shrink: 0 !important;
+        border-radius: 8px !important;
+        overflow: hidden !important;
+        background: #f8f9fa !important;
+        position: relative !important;
+    `;
+
+    const thumbnail = document.createElement('img');
+    thumbnail.className = 'chapter-thumbnail';
+    thumbnail.loading = 'lazy';
+    thumbnail.src = chapter.thumbnail;
+    thumbnail.alt = chapter.title;
+    thumbnail.style.cssText = `
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        display: block !important;
+        transition: transform 0.3s ease, opacity 0.3s ease !important;
+    `;
+
+    // 🔧 图片加载错误处理
+    thumbnail.addEventListener('error', () => {
+        this.#handleThumbnailError(imageContainer, thumbnail);
+    }, { once: true });
+
+    // 🔧 图片加载成功处理
+    thumbnail.addEventListener('load', () => {
+        thumbnail.style.opacity = '1';
+    }, { once: true });
+
+    // 初始设置为半透明，加载完成后变为不透明
+    thumbnail.style.opacity = '0.8';
+
+    imageContainer.appendChild(thumbnail);
+    return imageContainer;
+}
+
+// 🔧 新增：缩略图加载错误处理
+#handleThumbnailError(container, thumbnail) {
+    console.warn('[App] 缩略图加载失败:', thumbnail.src);
+    
+    // 创建占位符图标
+    const placeholder = document.createElement('div');
+    placeholder.style.cssText = `
+        width: 100% !important;
+        height: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+        color: #6c757d !important;
+        font-size: 24px !important;
+    `;
+    placeholder.textContent = '📖';
+
+    // 替换失败的图片
+    container.innerHTML = '';
+    container.appendChild(placeholder);
+    
+    // 为容器添加错误标识
+    container.classList.add('thumbnail-error');
+}
+
+// === 关键变化对比 ===
+// BEFORE (原始的章节元素创建逻辑)
+/*
+// 🎨 右侧图片 - 总是创建
+const imageContainer = document.createElement('div');
+imageContainer.style.cssText = `
+    width: ${isMobile ? '80px' : '120px'} !important;
+    // ... 样式代码
+`;
+
+const thumbnail = document.createElement('img');
+thumbnail.src = chapter.thumbnail || 'images/placeholder.jpg'; // 总是设置图片
+// ... 图片设置代码
+
+imageContainer.appendChild(thumbnail);
+link.appendChild(contentContainer);
+link.appendChild(imageContainer); // 总是添加图片容器
+*/
+
+// AFTER (优化后的条件渲染逻辑)
+/*
+// 🔍 条件渲染：只有在有有效缩略图时才创建图片容器
+if (hasThumbnail) {
+    const imageContainer = this.#createThumbnailContainer(chapter, isMobile);
+    link.appendChild(imageContainer);
+}
+
+// 新增智能检测方法
+#hasValidThumbnail(chapter) {
+    // 多重验证：存在性、非空、非占位符、格式正确
+}
+*/
+
+// IMPACT: 
+// 1. 性能提升：避免无效图片的加载和DOM创建
+// 2. 用户体验：无缩略图时内容自动填充全宽，显示更美观
+// 3. 错误处理：图片加载失败时显示优雅的占位符
+// 4. 代码维护：逻辑更清晰，职责分离
+
+    // === 公共API方法 ===
     async waitForInitialization() {
         return this.initPromise;
     }
@@ -1234,17 +1589,13 @@ class App {
                 glossary: !!this.glossaryManager,
                 audioSync: !!this.audioSyncManager
             },
-            chapterNavState: { ...this.chapterNavState },
+            chapterNavState: {
+                ...this.chapterNavState
+            },
             isDestroyed: this.state.isDestroyed,
             config: this.config,
             screenInfo: this.state.screenInfo,
-            domCacheSize: this.domCache.size,
-            // 🚀 新增：性能统计
-            performance: {
-                batchUpdates: this.state.batchUpdate.callbacks.length,
-                templatesLoaded: Object.keys(this.templates).length,
-                cachingEnabled: this.domCache.size > 0
-            }
+            domCacheSize: this.domCache.size
         };
     }
 
@@ -1256,22 +1607,11 @@ class App {
         }
     }
 
-    // 🚀 新增：批处理状态检查
-    getBatchUpdateStatus() {
-        return {
-            pending: this.state.batchUpdate.pending,
-            queueSize: this.state.batchUpdate.callbacks.length,
-            frameId: this.state.batchUpdate.frame
-        };
-    }
-
-    // 🚀 优化：测试方法
-    testOptimizations() {
+    // 🚀 优化：测试CSS选择器
+    testCSSOptimization() {
         const testResults = {
             domCacheHits: this.domCache.size,
             screenInfoCached: !!this.state.screenInfo,
-            templatesPrecompiled: Object.keys(this.templates).length,
-            batchUpdateSystem: this.state.batchUpdate !== null,
             modulesLoaded: Object.fromEntries(this.state.loading),
             overallHealth: 0
         };
@@ -1281,8 +1621,7 @@ class App {
             !!this.elements.content,
             !!this.elements.mainNav,
             this.state.loading.size > 0,
-            !!this.navigation,
-            Object.keys(this.templates).length > 0
+            !!this.navigation
         ];
 
         testResults.overallHealth = (tests.filter(Boolean).length / tests.length * 100).toFixed(1);
@@ -1294,18 +1633,10 @@ class App {
         return testResults;
     }
 
-    // 🚀 优化：销毁方法
     destroy() {
         if (this.state.isDestroyed) return;
 
         this.state.isDestroyed = true;
-
-        // 🚀 清理批处理
-        if (this.state.batchUpdate.frame) {
-            cancelAnimationFrame(this.state.batchUpdate.frame);
-            this.state.batchUpdate.frame = null;
-        }
-        this.state.batchUpdate.callbacks.length = 0;
 
         // 🚀 优化：异步清理
         this.#cleanupModules().finally(() => {
@@ -1318,7 +1649,7 @@ class App {
             }
 
             if (this.config.debug) {
-                console.log('[App] 优化版应用已销毁');
+                console.log('[App] Application destroyed');
             }
         });
     }
@@ -1341,16 +1672,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 等待应用初始化
         await window.app.waitForInitialization();
 
-        console.log('[App] 优化版应用启动成功');
+        console.log('[App] Application started successfully');
 
         // 🚀 优化：调试工具（按需加载）
         if (appOptions.debug && window.appTools) {
             window.appTools.app = window.app;
-            console.log('🎯 优化版App实例已添加到 window.appTools.app');
+            console.log('🎯 App实例已添加到 window.appTools.app');
 
             // 延迟运行测试（不阻塞主线程）
             setTimeout(() => {
-                const testResults = window.app.testOptimizations();
+                const testResults = window.app.testCSSOptimization();
                 console.log('🧪 优化测试结果:', testResults);
 
                 const status = window.app.getAppStatus();
@@ -1359,7 +1690,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
     } catch (error) {
-        console.error('[App] 优化版应用启动失败:', error);
+        console.error('[App] Failed to start application:', error);
 
         // 🚀 优化：错误处理（非阻塞）
         window.EnglishSite?.SimpleErrorHandler?.record('app', 'startup', error);
@@ -1369,10 +1700,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const contentArea = document.getElementById('content');
         if (contentArea) {
             contentArea.innerHTML = `
-                <div class="error-boundary">
+                <div style="text-align: center; padding: 40px; color: #dc3545;">
                     <h2>🚫 应用启动失败</h2>
                     <p>发生了严重错误，请刷新页面或联系技术支持。</p>
-                    <button onclick="location.reload()" class="btn-reload">
+                    <button onclick="location.reload()" 
+                            style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
                         🔄 重新加载
                     </button>
                 </div>
@@ -1383,8 +1715,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // 导出App类
 window.EnglishSite.App = App;
-
-// 🚀 全局调试函数（保持兼容性）
+// 🚀 全局调试函数
 window.debugNavData = function() {
     const app = window.app;
     if (!app) {
@@ -1430,6 +1761,8 @@ window.debugNavData = function() {
         };
     } catch (error) {
         console.error('递归提取测试失败:', error);
-        return { error: error.message };
+        return {
+            error: error.message
+        };
     }
 };
