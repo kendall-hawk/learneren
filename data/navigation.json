@@ -1,0 +1,43 @@
+[
+  {
+    "id": "all-articles",
+    "series": "所有文章",
+    "seriesId": "all-articles",
+    "description": "浏览所有学习文章和章节",
+    "type": "all-articles",
+    "icon": "📚"
+  },
+  {
+    "id": "bbc-english",
+    "title": "BBC English", 
+    "type": "category",
+    "icon": "📺",
+    "description": "BBC English learning series for beginners",
+    "children": [
+      {
+        "id": "6-minutes-english",
+        "title": "6 Minutes English",
+        "type": "series",
+        "icon": "⏰", 
+        "description": "Short episodes covering various topics",
+        "thumbnail": "https://img.youtube.com/vi/aOiuSsnWEik/maxresdefault.jpg",
+        "chapters": [
+          {
+            "id": "chap1",
+            "title": "What's your favourite kind of noodle?",
+            "description": "Learn about food preferences and cultural differences",
+            "audio": "audio/chap1.mp3",
+            "type": "chapter"
+          },
+          {
+            "id": "chap2", 
+            "title": "How important is politeness?",
+            "description": "Explore the role of politeness in communication", 
+            "audio": "audio/chap2.mp3",
+            "type": "chapter"
+          }
+        ]
+      }
+    ]
+  }
+]

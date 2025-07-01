@@ -1,0 +1,450 @@
+{
+  "invention": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Invention",
+          "partOfSpeech": "noun",
+          "definition": "The action of inventing something that has never been made before, or the item that is created.",
+          "contextualMeaning": "Refers to the creation of a new product, idea, or process. It implies originality and novelty.",
+          "exampleSentence": "The invention of the internet completely changed how we access information.",
+          "synonyms": ["creation", "discovery", "innovation"],
+          "antonyms": ["imitation", "copy"],
+          "etymology": "From late Middle English, via Old French from Latin 'inventio(n-)', from 'invenire' meaning 'to find'."
+        }
+      ]
+    }
+  },
+  "unspecified": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Unspecified",
+          "partOfSpeech": "adjective",
+          "definition": "Not stated clearly or in detail.",
+          "contextualMeaning": "Used to describe something that is known to exist but has not been given a specific name, time, or detail.",
+          "exampleSentence": "The meeting will take place at an unspecified location to ensure privacy.",
+          "synonyms": ["indefinite", "unnamed", "undetermined"],
+          "antonyms": ["specified", "defined", "explicit"],
+          "etymology": "From 'un-' (not) + the past participle of 'specify'."
+        }
+      ]
+    }
+  },
+  "idiom": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Idiom",
+          "partOfSpeech": "noun",
+          "definition": "A group of words established by usage as having a meaning not deducible from those of the individual words.",
+          "contextualMeaning": "A common phrase or expression whose figurative meaning is different from its literal meaning, often unique to a specific language or culture.",
+          "exampleSentence": "The phrase 'it's raining cats and dogs' is a popular English idiom.",
+          "synonyms": ["expression", "phrase", "colloquialism"],
+          "antonyms": [],
+          "etymology": "From late 16th century French 'idiome', via late Latin from Greek 'idiōma' meaning 'private property, peculiar phraseology'."
+        }
+      ]
+    }
+  },
+  "boundaries": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Boundaries",
+          "partOfSpeech": "noun (plural)",
+          "definition": "A line which marks the limits of an area; a dividing line. Can also refer to the limits of what is acceptable or possible.",
+          "contextualMeaning": "Often used figuratively to refer to the limits of social conventions, rules, or personal comfort zones.",
+          "exampleSentence": "Great artists often push the boundaries of what is considered traditional art.",
+          "synonyms": ["limits", "borders", "frontiers", "confines"],
+          "antonyms": [],
+          "etymology": "From Old French 'bodne', later 'borne', of Gaulish origin."
+        }
+      ]
+    }
+  },
+  "acceptable": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Acceptable",
+          "partOfSpeech": "adjective",
+          "definition": "Able to be agreed on; suitable. Satisfactory or good enough.",
+          "contextualMeaning": "Describes something that meets a certain minimum standard or is considered socially appropriate.",
+          "exampleSentence": "While his performance wasn't amazing, it was acceptable for a beginner.",
+          "synonyms": ["satisfactory", "adequate", "suitable", "appropriate"],
+          "antonyms": ["unacceptable", "unsuitable", "inappropriate"],
+          "etymology": "From late Middle English, from Old French, from the verb 'accepter'."
+        }
+      ]
+    }
+  },
+  "fresh": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Fresh",
+          "partOfSpeech": "adjective",
+          "definition": "(Of food) recently made or obtained; not canned, frozen, or otherwise preserved.",
+          "contextualMeaning": "Emphasizes that food is natural and has not been processed for long-term storage, often implying better taste and quality.",
+          "exampleSentence": "She prefers to buy fresh vegetables from the farmer's market.",
+          "synonyms": ["new", "recent", "natural", "unprocessed"],
+          "antonyms": ["stale", "frozen", "canned", "preserved"],
+          "etymology": "Old English 'fersc' meaning 'fresh, new, unsalted', of West Germanic origin."
+        }
+      ]
+    }
+  },
+  "popular": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Popular",
+          "partOfSpeech": "adjective",
+          "definition": "Liked, admired, or enjoyed by many people or by a particular person or group.",
+          "contextualMeaning": "Indicates widespread appeal and acceptance among a general audience.",
+          "exampleSentence": "That new song has become very popular on social media platforms.",
+          "synonyms": ["well-liked", "fashionable", "mainstream", "widespread"],
+          "antonyms": ["unpopular", "obscure", "niche"],
+          "etymology": "From late Middle English, via Old French from Latin 'popularis', from 'populus' meaning 'people'."
+        }
+      ]
+    }
+  },
+  "origins": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Origins",
+          "partOfSpeech": "noun (plural)",
+          "definition": "The point or place where something begins, arises, or is derived.",
+          "contextualMeaning": "Refers to the source, beginning, or ancestry of something, whether it be an idea, object, or person.",
+          "exampleSentence": "The museum has an exhibit on the origins of human civilization.",
+          "synonyms": ["beginnings", "roots", "source", "genesis"],
+          "antonyms": ["endings", "conclusions"],
+          "etymology": "From Old French 'origine', from Latin 'origo, origin-' from 'oriri' meaning 'to rise'."
+        }
+      ]
+    }
+  },
+  "recipes": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Recipes",
+          "partOfSpeech": "noun (plural)",
+          "definition": "A set of instructions for preparing a particular dish, including a list of the ingredients required.",
+          "contextualMeaning": "A guide or formula for making something, most commonly used for food but can be used metaphorically for achieving a certain result.",
+          "exampleSentence": "My grandmother keeps her secret family recipes in an old notebook.",
+          "synonyms": ["instructions", "formula", "method", "procedure"],
+          "antonyms": [],
+          "etymology": "From Latin 'recipe' meaning 'receive!', the imperative of 'recipere'."
+        }
+      ]
+    }
+  },
+  "spread": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Spread",
+          "partOfSpeech": "verb",
+          "definition": "Extend over a large or increasing area; open out from a folded position.",
+          "contextualMeaning": "Can refer to the physical distribution of things over an area or the dissemination of information, ideas, or influence.",
+          "exampleSentence": "News of the event began to spread quickly online.",
+          "synonyms": ["disseminate", "distribute", "circulate", "extend"],
+          "antonyms": ["concentrate", "gather", "contain"],
+          "etymology": "Old English 'sprǣdan', of West Germanic origin."
+        }
+      ]
+    }
+  },
+  "traders": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Traders",
+          "partOfSpeech": "noun (plural)",
+          "definition": "A person who buys and sells goods, currency, or stocks.",
+          "contextualMeaning": "Refers to people engaged in commerce, often historically implying travel and the exchange of goods between different cultures.",
+          "exampleSentence": "Ancient traders traveled long distances to exchange silk for spices.",
+          "synonyms": ["merchants", "dealers", "merchandisers", "vendors"],
+          "antonyms": [],
+          "etymology": "From Middle Low German 'trade' meaning 'track, course', related to 'tread'."
+        }
+      ]
+    }
+  },
+  "destination": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Destination",
+          "partOfSpeech": "noun",
+          "definition": "The place to which someone or something is going or being sent.",
+          "contextualMeaning": "The final point in a journey or the end goal of a process.",
+          "exampleSentence": "After a long flight, we finally arrived at our holiday destination.",
+          "synonyms": ["end-point", "goal", "target", "terminus"],
+          "antonyms": ["origin", "starting point"],
+          "etymology": "From late Middle English, via Old French from Latin 'destinatio(n-)', from 'destinare' meaning 'to determine'."
+        }
+      ]
+    }
+  },
+  "flavour": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Flavour (Flavor)",
+          "partOfSpeech": "noun",
+          "definition": "The distinctive taste of a food or drink.",
+          "contextualMeaning": "Can also refer to the general character or quality of something.",
+          "exampleSentence": "The chef added a unique combination of herbs to give the soup a rich flavour.",
+          "synonyms": ["taste", "savor", "aroma", "essence"],
+          "antonyms": ["blandness"],
+          "etymology": "From Old French 'flaur', probably from a source related to Latin 'flatus' meaning 'a blowing'."
+        }
+      ]
+    }
+  },
+  "ingredients": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Ingredients",
+          "partOfSpeech": "noun (plural)",
+          "definition": "Any of the foods or substances that are combined to make a particular dish.",
+          "contextualMeaning": "The components or elements that make up a whole, whether a food, product, or abstract concept.",
+          "exampleSentence": "Always read the list of ingredients to check for potential allergens.",
+          "synonyms": ["components", "elements", "constituents", "parts"],
+          "antonyms": [],
+          "etymology": "From Latin 'ingredient- ' from 'ingredi' meaning 'to enter'."
+        }
+      ]
+    }
+  },
+  "varieties": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Varieties",
+          "partOfSpeech": "noun (plural)",
+          "definition": "The quality or state of being different or diverse; the absence of uniformity or monotony.",
+          "contextualMeaning": "Refers to a number of different types or kinds of something.",
+          "exampleSentence": "The store offers a wide range of apple varieties, from sweet to tart.",
+          "synonyms": ["types", "kinds", "sorts", "assortment", "diversity"],
+          "antonyms": ["uniformity", "sameness"],
+          "etymology": "From French 'variété' or Latin 'varietas', from 'varius' meaning 'diverse'."
+        }
+      ]
+    }
+  },
+  "investigated": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Investigated",
+          "partOfSpeech": "verb (past tense)",
+          "definition": "Carried out a formal or systematic inquiry to discover and examine the facts of an incident, allegation, etc., so as to establish the truth.",
+          "contextualMeaning": "To look into a matter deeply and methodically to find out what happened.",
+          "exampleSentence": "The police investigated the cause of the mysterious fire.",
+          "synonyms": ["examined", "probed", "explored", "researched"],
+          "antonyms": ["ignored", "neglected"],
+          "etymology": "From Latin 'investigare', from 'investigium' meaning 'a footprint, a trace'."
+        }
+      ]
+    }
+  },
+  "uncovered": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Uncovered",
+          "partOfSpeech": "verb (past tense)",
+          "definition": "Discovered something secret or previously unknown.",
+          "contextualMeaning": "To reveal or bring to light something that was hidden, concealed, or not known before.",
+          "exampleSentence": "The journalist uncovered a major political scandal through her research.",
+          "synonyms": ["revealed", "discovered", "exposed", "unearthed"],
+          "antonyms": ["covered", "concealed", "hid"],
+          "etymology": "From 'un-' (not) + 'covered'."
+        }
+      ]
+    }
+  },
+  "exotic": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Exotic",
+          "partOfSpeech": "adjective",
+          "definition": "Originating in or characteristic of a distant foreign country.",
+          "contextualMeaning": "Describes something that is attractive or striking because it seems unusual and fascinating due to its foreign origin.",
+          "exampleSentence": "She decorated her home with exotic plants from Southeast Asia.",
+          "synonyms": ["foreign", "unusual", "unfamiliar", "striking"],
+          "antonyms": ["native", "local", "ordinary", "common"],
+          "etymology": "From Greek 'exōtikos', from 'exō' meaning 'outside'."
+        }
+      ]
+    }
+  },
+  "association": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Association",
+          "partOfSpeech": "noun",
+          "definition": "A group of people organized for a joint purpose; a connection or cooperative link between people or organizations.",
+          "contextualMeaning": "An official group or organization with a common goal, or a mental connection between ideas.",
+          "exampleSentence": "He joined the local historical association to learn more about his town.",
+          "synonyms": ["organization", "alliance", "league", "connection"],
+          "antonyms": ["disassociation", "separation"],
+          "etymology": "From medieval Latin 'associatio(n-)', from the verb 'associare'."
+        }
+      ]
+    }
+  },
+  "promote": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Promote",
+          "partOfSpeech": "verb",
+          "definition": "Support or actively encourage (a cause, venture, or aim); further the progress of.",
+          "contextualMeaning": "To help something grow, develop, or increase in popularity, often through advertising or public support.",
+          "exampleSentence": "The campaign was designed to promote awareness of environmental issues.",
+          "synonyms": ["encourage", "advance", "foster", "endorse", "advertise"],
+          "antonyms": ["obstruct", "demote", "discourage"],
+          "etymology": "From late Middle English, from Latin 'promovere', from 'pro-' (forward) + 'movere' (to move)."
+        }
+      ]
+    }
+  },
+  "manufacturing": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Manufacturing",
+          "partOfSpeech": "noun",
+          "definition": "The process of making articles on a large scale using machinery.",
+          "contextualMeaning": "Refers to the industrial production of goods from raw materials.",
+          "exampleSentence": "The city's economy is heavily based on automobile manufacturing.",
+          "synonyms": ["production", "construction", "fabrication", "assembly"],
+          "antonyms": ["destruction", "demolition"],
+          "etymology": "From 'manufacture', from French, from Latin 'manu' (by hand) + 'factura' (a working), from 'facere' (to make)."
+        }
+      ]
+    }
+  },
+  "meaning": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Meaning",
+          "partOfSpeech": "noun",
+          "definition": "What is meant by a word, text, concept, or action; the significance or purpose of something.",
+          "contextualMeaning": "The idea or message that is intended to be conveyed.",
+          "exampleSentence": "Philosophers have long debated the meaning of life.",
+          "synonyms": ["significance", "sense", "definition", "implication", "purport"],
+          "antonyms": ["meaninglessness"],
+          "etymology": "From the verb 'mean', from Old English 'mǣnan'."
+        }
+      ]
+    }
+  },
+  "foreign": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Foreign",
+          "partOfSpeech": "adjective",
+          "definition": "Of, from, in, or characteristic of a country or language other than one's own.",
+          "contextualMeaning": "Describes something that is from outside one's own country, or something that is strange and unfamiliar.",
+          "exampleSentence": "It can be challenging to learn a foreign language as an adult.",
+          "synonyms": ["overseas", "international", "alien", "unfamiliar"],
+          "antonyms": ["domestic", "native", "local"],
+          "etymology": "From Old French 'forain', based on Latin 'foras' meaning 'out of doors'."
+        }
+      ]
+    }
+  },
+  "localise": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Localise (Localize)",
+          "partOfSpeech": "verb",
+          "definition": "Adapt (a product or content) to a specific language or culture so that it seems natural to that particular region.",
+          "contextualMeaning": "To make something local in character; to modify something to fit the preferences and culture of a specific area.",
+          "exampleSentence": "The company decided to localise its software for the Japanese market.",
+          "synonyms": ["adapt", "customize", "tailor", "regionalize"],
+          "antonyms": ["globalize", "standardize"],
+          "etymology": "From 'local' + '-ise'. 'Local' is from late Latin 'localis', from 'locus' meaning 'place'."
+        }
+      ]
+    }
+  },
+  "slices": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Slices",
+          "partOfSpeech": "noun (plural)",
+          "definition": "Thin, broad pieces of food, such as bread, meat, or cake, cut from a larger portion.",
+          "contextualMeaning": "Portions cut from a whole, often implying thinness and flatness.",
+          "exampleSentence": "She put a few slices of cucumber and tomato in her sandwich.",
+          "synonyms": ["pieces", "sections", "portions", "shavings"],
+          "antonyms": [],
+          "etymology": "From Old French 'esclice', from 'esclicier' meaning 'to splinter'."
+        }
+      ]
+    }
+  },
+  "gradually": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Gradually",
+          "partOfSpeech": "adverb",
+          "definition": "In a gradual way; slowly; by degrees.",
+          "contextualMeaning": "Describes a process that happens slowly and steadily over a period of time, not suddenly.",
+          "exampleSentence": "The sky gradually became darker as the sun set.",
+          "synonyms": ["slowly", "progressively", "steadily", "incrementally"],
+          "antonyms": ["suddenly", "abruptly", "rapidly"],
+          "etymology": "From 'gradual', from medieval Latin 'gradualis', from 'gradus' meaning 'step'."
+        }
+      ]
+    }
+  },
+  "response": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Response",
+          "partOfSpeech": "noun",
+          "definition": "A verbal or written answer; a reaction to something.",
+          "contextualMeaning": "An answer, reply, or reaction to a stimulus, question, or event.",
+          "exampleSentence": "We are still waiting for a response to our official inquiry.",
+          "synonyms": ["answer", "reply", "reaction", "rejoinder"],
+          "antonyms": ["question", "query", "stimulus"],
+          "etymology": "From Old French 'respons', from Latin 'responsum', from 'respondere' meaning 'to answer'."
+        }
+      ]
+    }
+  },
+  "traditional": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Traditional",
+          "partOfSpeech": "adjective",
+          "definition": "Existing in or as part of a tradition; long-established.",
+          "contextualMeaning": "Describes customs, beliefs, or methods that have been passed down through generations and are considered standard or conventional.",
+          "exampleSentence": "Many families have a traditional meal they eat on holidays.",
+          "synonyms": ["conventional", "customary", "established", "time-honored"],
+          "antonyms": ["modern", "unconventional", "innovative"],
+          "etymology": "From 'tradition', from Latin 'traditio(n-)', from 'tradere' meaning 'deliver, hand over'."
+        }
+      ]
+    }
+  }
+}

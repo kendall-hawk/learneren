@@ -1,0 +1,11 @@
+[
+  {
+    "id": "word-frequency",
+    "title": "📊 词频统计分析",
+    "description": "全站英文词汇频次统计，帮助发现重点学习词汇，支持词云展示和智能搜索",
+    "thumbnail": "images/word-frequency-thumb.jpg",
+    "url": "./word-frequency.html",
+    "type": "tool",
+    "category": "analysis"
+  }
+]

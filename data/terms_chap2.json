@@ -1,0 +1,434 @@
+{
+  "shame": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Shame",
+          "partOfSpeech": "noun",
+          "definition": "A painful feeling of humiliation or distress caused by the consciousness of wrong or foolish behavior.",
+          "contextualMeaning": "Can also be used to express regret or disappointment about something, as in 'It's a shame that you can't come.'",
+          "exampleSentence": "It's a shame we have to leave the party so early.",
+          "synonyms": ["regret", "pity", "disappointment"],
+          "antonyms": ["pride", "honor"],
+          "etymology": "Old English 'scamu', of Germanic origin, related to a verb meaning 'to cover'."
+        }
+      ]
+    }
+  },
+  "statement": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Statement",
+          "partOfSpeech": "noun",
+          "definition": "A definite or clear expression of something in speech or writing.",
+          "contextualMeaning": "A formal declaration or announcement of facts, opinions, or intentions.",
+          "exampleSentence": "The company issued an official statement to address the recent rumors.",
+          "synonyms": ["declaration", "announcement", "assertion"],
+          "antonyms": ["question", "retraction"],
+          "etymology": "From the verb 'state', from Latin 'status' meaning 'state, condition'."
+        }
+      ]
+    }
+  },
+  "negative": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Negative",
+          "partOfSpeech": "adjective",
+          "definition": "Consisting in or characterized by the absence rather than the presence of distinguishing features; expressing or implying refusal, disagreement, or denial.",
+          "contextualMeaning": "Describes something that is bad, harmful, or pessimistic.",
+          "exampleSentence": "Try to avoid a negative attitude when facing new challenges.",
+          "synonyms": ["bad", "unfavorable", "pessimistic", "harmful"],
+          "antonyms": ["positive", "favorable", "optimistic"],
+          "etymology": "From late Middle English, via Old French from Latin 'negativus', from 'negare' meaning 'to deny'."
+        }
+      ]
+    }
+  },
+  "reputation": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Reputation",
+          "partOfSpeech": "noun",
+          "definition": "The beliefs or opinions that are generally held about someone or something.",
+          "contextualMeaning": "The general estimation in which a person or thing is held by the public.",
+          "exampleSentence": "The restaurant has a reputation for excellent service.",
+          "synonyms": ["standing", "status", "character", "name"],
+          "antonyms": [],
+          "etymology": "From Latin 'reputatio(n-)', from 'reputare' meaning 'to think over'."
+        }
+      ]
+    }
+  },
+  "rude": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Rude",
+          "partOfSpeech": "adjective",
+          "definition": "Offensively impolite or ill-mannered.",
+          "contextualMeaning": "Behavior that shows a lack of respect for other people.",
+          "exampleSentence": "It is considered rude to interrupt someone while they are speaking.",
+          "synonyms": ["impolite", "discourteous", "insolent"],
+          "antonyms": ["polite", "courteous", "respectful"],
+          "etymology": "From Latin 'rudis' meaning 'unwrought, rough'."
+        }
+      ]
+    }
+  },
+  "presenter": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Presenter",
+          "partOfSpeech": "noun",
+          "definition": "A person who introduces or hosts a television or radio program.",
+          "contextualMeaning": "Someone who presents information to an audience, such as a host, speaker, or lecturer.",
+          "exampleSentence": "The presenter of the news show is well-known for her clear speaking style.",
+          "synonyms": ["host", "announcer", "anchor", "speaker"],
+          "antonyms": [],
+          "etymology": "From the verb 'present', via Old French from Latin 'praesentare'."
+        }
+      ]
+    }
+  },
+  "recognised": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Recognised (Recognized)",
+          "partOfSpeech": "verb (past tense)",
+          "definition": "Identified (someone or something) from having encountered them before; acknowledged the existence, validity, or legality of.",
+          "contextualMeaning": "To know someone or something because you have seen or heard them before.",
+          "exampleSentence": "She recognised her old friend from across the room, even after ten years.",
+          "synonyms": ["identified", "knew", "remembered"],
+          "antonyms": ["forgot", "overlooked"],
+          "etymology": "From 're-' (again) + Middle English 'knowlechen' (acknowledge)."
+        }
+      ]
+    }
+  },
+  "crucial": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Crucial",
+          "partOfSpeech": "adjective",
+          "definition": "Decisive or critical, especially in the success or failure of something.",
+          "contextualMeaning": "Extremely important or necessary for a particular situation or outcome.",
+          "exampleSentence": "Getting enough sleep is crucial for good health.",
+          "synonyms": ["vital", "critical", "essential", "pivotal"],
+          "antonyms": ["unimportant", "minor", "trivial"],
+          "etymology": "From French 'crucial', from Latin 'crux, cruc-' meaning 'cross'."
+        }
+      ]
+    }
+  },
+  "perceived": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Perceived",
+          "partOfSpeech": "verb (past tense)",
+          "definition": "Became aware or conscious of (something); came to realize or understand.",
+          "contextualMeaning": "How something is interpreted or regarded by someone; the way one understands or sees a situation.",
+          "exampleSentence": "He perceived a change in her attitude towards the project.",
+          "synonyms": ["understood", "noticed", "sensed", "interpreted"],
+          "antonyms": ["missed", "ignored"],
+          "etymology": "From Old French 'perçoivre', from Latin 'percipere' meaning 'to seize, understand'."
+        }
+      ]
+    }
+  },
+  "conventional": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Conventional",
+          "partOfSpeech": "adjective",
+          "definition": "Based on or in accordance with what is generally done or believed.",
+          "contextualMeaning": "Following the traditional or widely accepted forms and standards.",
+          "exampleSentence": "He chose a conventional suit for the job interview instead of something more fashionable.",
+          "synonyms": ["traditional", "standard", "orthodox", "customary"],
+          "antonyms": ["unconventional", "unorthodox", "original"],
+          "etymology": "From late Latin 'conventionalis', from Latin 'conventio(n-)' meaning 'agreement, meeting'."
+        }
+      ]
+    }
+  },
+  "informal": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Informal",
+          "partOfSpeech": "adjective",
+          "definition": "Having a relaxed, friendly, or unofficial style, manner, or nature.",
+          "contextualMeaning": "Suitable for everyday situations rather than official or formal ones.",
+          "exampleSentence": "The company has an informal dress code on Fridays.",
+          "synonyms": ["casual", "relaxed", "unofficial"],
+          "antonyms": ["formal", "official", "ceremonial"],
+          "etymology": "From 'in-' (not) + 'formal'."
+        }
+      ]
+    }
+  },
+  "interpreted": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Interpreted",
+          "partOfSpeech": "verb (past tense)",
+          "definition": "Explained the meaning of (information, words, or actions).",
+          "contextualMeaning": "Understood an action, word, or situation in a particular way.",
+          "exampleSentence": "She interpreted his silence as a sign of disapproval.",
+          "synonyms": ["understood", "construed", "explained", "deciphered"],
+          "antonyms": ["misinterpreted", "misunderstood"],
+          "etymology": "From Latin 'interpretari', from 'interpres, interpret-' meaning 'explainer'."
+        }
+      ]
+    }
+  },
+  "threatening": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Threatening",
+          "partOfSpeech": "adjective",
+          "definition": "Having a hostile or deliberately frightening quality or manner.",
+          "contextualMeaning": "Appearing as if it might cause harm or danger.",
+          "exampleSentence": "The dark, threatening clouds suggested a storm was coming.",
+          "synonyms": ["menacing", "intimidating", "ominous"],
+          "antonyms": ["friendly", "reassuring", "harmless"],
+          "etymology": "From the verb 'threaten', from Old English 'þrēat' meaning 'oppression'."
+        }
+      ]
+    }
+  },
+  "quite": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Quite",
+          "partOfSpeech": "adverb",
+          "definition": "To the utmost or most absolute extent or degree; completely. To a certain or fairly significant extent or degree; moderately.",
+          "contextualMeaning": "Used to add emphasis or to mean 'to some degree'. For example 'quite good' means fairly good.",
+          "exampleSentence": "The movie was quite interesting, although a little long.",
+          "synonyms": ["fairly", "rather", "somewhat", "completely"],
+          "antonyms": [],
+          "etymology": "From Middle English, originally in the sense 'entirely, freely', from Old French 'quite'."
+        }
+      ]
+    }
+  },
+  "kindly": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Kindly",
+          "partOfSpeech": "adverb/adjective",
+          "definition": "(As adverb) In a kind manner. (As adjective) Kind, warm-hearted, or gentle.",
+          "contextualMeaning": "Behaving in a way that is pleasant, friendly, and good-natured.",
+          "exampleSentence": "She has a kindly smile that makes everyone feel welcome.",
+          "synonyms": ["benevolent", "gentle", "warm-hearted"],
+          "antonyms": ["unkind", "harsh"],
+          "etymology": "Old English 'gecyndelīce' meaning 'naturally', later influenced by 'kind'."
+        }
+      ]
+    }
+  },
+  "offensive": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Offensive",
+          "partOfSpeech": "adjective",
+          "definition": "Causing someone to feel deeply hurt, upset, or angry.",
+          "contextualMeaning": "Describes something that is disagreeable and causes resentment or moral outrage.",
+          "exampleSentence": "His comments were deeply offensive to many people in the audience.",
+          "synonyms": ["insulting", "rude", "disrespectful", "upsetting"],
+          "antonyms": ["inoffensive", "polite", "complimentary"],
+          "etymology": "From French 'offensif, -ive', from 'offenser', from Latin 'offendere'."
+        }
+      ]
+    }
+  },
+  "aggressive": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Aggressive",
+          "partOfSpeech": "adjective",
+          "definition": "Ready or likely to attack or confront; characterized by or resulting from aggression.",
+          "contextualMeaning": "Behaving in a forceful or angry way that can be frightening to others.",
+          "exampleSentence": "The driver became aggressive when someone took his parking spot.",
+          "synonyms": ["hostile", "forceful", "combative"],
+          "antonyms": ["passive", "peaceful", "calm"],
+          "etymology": "From Latin 'aggress-', from the verb 'aggredi', meaning 'to attack'."
+        }
+      ]
+    }
+  },
+  "civil": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Civil",
+          "partOfSpeech": "adjective",
+          "definition": "Courteous and polite.",
+          "contextualMeaning": "Relates to maintaining a minimum level of politeness and courtesy, even if not being warm or friendly.",
+          "exampleSentence": "Even though they disagreed, their debate remained civil.",
+          "synonyms": ["polite", "courteous", "cordial"],
+          "antonyms": ["rude", "impolite", "uncivil"],
+          "etymology": "From Latin 'civilis', from 'civis' meaning 'citizen'."
+        }
+      ]
+    }
+  },
+  "offence": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Offence (Offense)",
+          "partOfSpeech": "noun",
+          "definition": "An act or remark that causes annoyance, upset, or resentment.",
+          "contextualMeaning": "The state of being hurt or upset by someone's actions or words.",
+          "exampleSentence": "Please don't take offence at my comments; I was only trying to help.",
+          "synonyms": ["insult", "affront", "indignity"],
+          "antonyms": ["compliment", "praise"],
+          "etymology": "From Old French, via Latin from 'offendere' meaning 'strike against'."
+        }
+      ]
+    }
+  },
+  "society": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Society",
+          "partOfSpeech": "noun",
+          "definition": "The aggregate of people living together in a more or less ordered community.",
+          "contextualMeaning": "A large group of people who share a culture, institutions, and a common territory.",
+          "exampleSentence": "Every member of society has a responsibility to help others.",
+          "synonyms": ["community", "the public", "civilization"],
+          "antonyms": [],
+          "etymology": "From French 'société', from Latin 'societas', from 'socius' meaning 'companion'."
+        }
+      ]
+    }
+  },
+  "repeatedly": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Repeatedly",
+          "partOfSpeech": "adverb",
+          "definition": "Over and over again; constantly or frequently.",
+          "contextualMeaning": "Describes an action that happens many times.",
+          "exampleSentence": "He repeatedly checked his watch while waiting for the train.",
+          "synonyms": ["frequently", "again and again", "constantly"],
+          "antonyms": ["once", "rarely"],
+          "etymology": "From the verb 'repeat', from Old French 'repeter', from Latin 'repetere'."
+        }
+      ]
+    }
+  },
+  "mention": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Mention",
+          "partOfSpeech": "verb",
+          "definition": "Refer to (something) briefly and without going into detail.",
+          "contextualMeaning": "To speak or write about something in a brief, often casual way.",
+          "exampleSentence": "Did she mention where she was going for her vacation?",
+          "synonyms": ["refer to", "bring up", "state", "note"],
+          "antonyms": ["ignore", "omit"],
+          "etymology": "From Latin 'mentio(n-)', related to 'mens, ment-' meaning 'mind'."
+        }
+      ]
+    }
+  },
+  "embarrassment": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Embarrassment",
+          "partOfSpeech": "noun",
+          "definition": "A feeling of self-consciousness, shame, or awkwardness.",
+          "contextualMeaning": "The uncomfortable feeling you get when you do something foolish or awkward in front of other people.",
+          "exampleSentence": "To his embarrassment, he forgot the name of his host.",
+          "synonyms": ["shame", "awkwardness", "humiliation", "discomfort"],
+          "antonyms": ["pride", "confidence"],
+          "etymology": "From French 'embarrasser', from Spanish 'embarazar', probably from a Portuguese word based on 'baraça' meaning 'a noose'."
+        }
+      ]
+    }
+  },
+  "strong": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Strong",
+          "partOfSpeech": "adjective",
+          "definition": "Having the power to move heavy weights or perform other physically demanding tasks; existing in a high degree; intense.",
+          "contextualMeaning": "In this context, it means very intense or powerful, not physically.",
+          "exampleSentence": "She has a strong desire to travel the world.",
+          "synonyms": ["powerful", "intense", "keen", "deep"],
+          "antonyms": ["weak", "mild", "slight"],
+          "etymology": "Old English 'strang', of Germanic origin."
+        }
+      ]
+    }
+  },
+  "unspecified": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Unspecified",
+          "partOfSpeech": "adjective",
+          "definition": "Not stated clearly or in detail.",
+          "contextualMeaning": "Used to describe something that is known to exist but has not been given a specific name, time, or detail.",
+          "exampleSentence": "The package will arrive at an unspecified time tomorrow.",
+          "synonyms": ["indefinite", "unnamed", "undetermined"],
+          "antonyms": ["specified", "defined", "explicit"],
+          "etymology": "From 'un-' (not) + the past participle of 'specify'."
+        }
+      ]
+    }
+  },
+  "quiz": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Quiz",
+          "partOfSpeech": "noun",
+          "definition": "A test of knowledge, especially as a competition between individuals or teams as a form of entertainment.",
+          "contextualMeaning": "A short test to check understanding or knowledge.",
+          "exampleSentence": "The teacher gave the students a short quiz at the end of the lesson.",
+          "synonyms": ["test", "examination", "assessment"],
+          "antonyms": [],
+          "etymology": "Late 18th century: perhaps from Latin 'qui es?' meaning 'who are you?', the first question in a Latin grammar test."
+        }
+      ]
+    }
+  },
+  "worksheet": {
+    "contexts": {
+      "default": [
+        {
+          "title": "Worksheet",
+          "partOfSpeech": "noun",
+          "definition": "A paper listing questions or tasks for students.",
+          "contextualMeaning": "A document with exercises or problems for someone to complete.",
+          "exampleSentence": "Please complete the math worksheet for homework tonight.",
+          "synonyms": ["exercise sheet", "handout", "workbook"],
+          "antonyms": [],
+          "etymology": "From 'work' + 'sheet'."
+        }
+      ]
+    }
+  }
+}
