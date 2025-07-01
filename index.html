@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learner</title>
+    
+    <!-- PWA设置 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Learner">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    
+    <!-- 预加载关键资源 -->
+    <link rel="preload" href="css/style.css" as="style">
+    <link rel="preload" href="js/core.js" as="script">
+    <link rel="preload" href="data/navigation.json" as="fetch" crossorigin>
+    
+    <!-- 字体预加载 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Antic+Slab&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=emoji_objects" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=emoji_objects" />
+    
+    
+    <!-- 主样式表 -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- 关键CSS内联（防闪烁） -->
+    <style>
+        /* 基础布局防闪烁 */
+        body { opacity: 0; transition: opacity 0.3s ease; }
+        body.loaded { opacity: 1; }
+        
+        /* 加载指示器 */
+        .loading-indicator {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: #ffffff; z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column; gap: 1rem;
+        }
+        
+        .loading-spinner {
+            width: 32px; height: 32px;
+            border: 3px solid #f3f3f3; border-top: 3px solid #007bff;
+            border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 错误处理 */
+        .error-boundary {
+            text-align: center; padding: 2rem; color: #dc3545;
+            background: #f8f9fa; border-radius: 0.5rem; margin: 1rem;
+        }
+        
+        /* 确保下拉菜单不被截断 */
+        .site-header {
+            overflow: visible !important;
+        }
+        
+        .main-navigation {
+            overflow: visible !important;
+        }
+    </style>
+    <!-- 3. JavaScript智能滚动控制 - 添加到页面底部 -->
+
+</head>
+
+<body>
+    <!-- 加载指示器 -->
+    <div id="loading-indicator" class="loading-indicator">
+        <div class="loading-spinner" aria-label="加载中"></div>
+        <div class="loading-text">正在加载应用...</div>
+    </div>
+    
+<header class="site-header smart-header" role="banner">
+    <!-- 品牌头部 - 始终显示 -->
+    <div class="brand-header">
+        <div class="brand-container">
+            <h1 class="brand-title">
+                <span class="brand-text">learner
+                </span>
+                <span class="brand-en">En
+                    </span>
+            </h1>
+        </div>
+    </div>
+    
+    <!-- 导航栏 - 智能隐藏/显示 -->
+    <nav id="main-nav" class="main-navigation smart-nav" role="navigation" aria-label="主导航">
+        <!-- 导航内容将由JavaScript动态生成 -->
+    </nav>
+</header>
+    
+    <!-- 主要内容区域 -->
+    <main id="content" class="content-area" role="main">
+        <!-- 内容将由JavaScript动态加载 -->
+        <div style="text-align: center; padding: 40px;">
+            <h1>欢迎使用 Learner</h1>
+            <p>正在加载导航和内容...</p>
+        </div>
+    </main>
+    
+    <!-- 返回顶部按钮 -->
+    <button id="back-to-top" class="back-to-top" aria-label="返回顶部" title="返回顶部">
+        <span aria-hidden="true">↑</span>
+    </button>
+    
+    <!-- 章节导航 -->
+    <div id="chapter-nav-container" role="navigation" aria-label="章节导航">
+        <!-- 章节导航按钮将由JavaScript动态生成 -->
+    </div>
+    
+    <!-- 音频播放器 -->
+    <div id="player-section" style="display: none;" role="contentinfo">
+        <audio id="audio-player" controls preload="none" aria-label="章节音频">
+            <p>您的浏览器不支持音频播放功能。</p>
+        </audio>
+    </div>
+    
+    <!-- 词汇表弹窗 -->
+    <div id="glossary-popup" class="glossary-popup glossary-hidden" role="dialog" aria-modal="true" aria-labelledby="glossary-word">
+        <div class="glossary-header">
+            <h3 id="glossary-word" tabindex="-1"></h3>
+            <div class="glossary-part-of-speech" aria-label="词性"></div>
+        </div>
+        <div class="glossary-popup-content">
+            <div class="glossary-main-definition-container" aria-label="主要定义"></div>
+            <div class="glossary-contextual-meaning-container" aria-label="语境含义"></div>
+            <div class="glossary-example-container" aria-label="例句"></div>
+            <dl class="glossary-details-list" aria-label="详细信息"></dl>
+        </div>
+    </div>
+    <!-- 在其他JS文件之前加载 -->
+    <script src="js/core.js" defer></script>
+    <!-- JavaScript模块加载 -->
+    <script>
+        // 基础错误处理和超时检测
+        window.addEventListener('error', function(e) {
+            console.error('应用错误:', e.error);
+            const indicator = document.getElementById('loading-indicator');
+            if (indicator) {
+                indicator.innerHTML = `
+                    <div class="error-boundary">
+                        <h2>🚫 加载失败</h2>
+                        <p>应用启动时遇到问题，请刷新页面重试。</p>
+                        <button onclick="location.reload()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            🔄 重新加载
+                        </button>
+                    </div>
+                `;
+            }
+        });
+        
+        // 超时检测（15秒）
+        setTimeout(function() {
+            if (!window.EnglishSite || !document.body.classList.contains('loaded')) {
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator && indicator.style.display !== 'none') {
+                    indicator.innerHTML = `
+                        <div class="error-boundary">
+                            <h3>⏱️ 加载超时</h3>
+                            <p>网络连接可能存在问题，请检查后重试。</p>
+                            <button onclick="location.reload()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">重新加载</button>
+                        </div>
+                    `;
+                }
+            }
+        }, 15000);
+        
+        // 应用启动完成处理
+        document.addEventListener('DOMContentLoaded', function() {
+            function hideLoading() {
+                const indicator = document.getElementById('loading-indicator');
+                if (indicator) {
+                    indicator.style.opacity = '0';
+                    setTimeout(() => {
+                        indicator.style.display = 'none';
+                        document.body.classList.add('loaded');
+                    }, 300);
+                }
+            }
+            
+            // 等待应用初始化完成
+            if (window.EnglishSite && window.EnglishSite.coreToolsReady) {
+                window.EnglishSite.coreToolsReady.then(() => {
+                    // 额外等待确保导航渲染完成
+                    setTimeout(hideLoading, 800);
+                }).catch(() => {
+                    hideLoading();
+                });
+            } else {
+                // 降级处理
+                setTimeout(hideLoading, 2000);
+            }
+        });
+        
+// 按Ctrl+
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        if (!document.getElementById('debug-panel')) {
+            loadDebugTool();
+        }
+    }
+});
+
+function loadDebugTool() {
+    // 在这里插入调试工具的CSS和JavaScript代码
+    // ... (从上面的HTML中复制 <style> 和 <script> 部分)
+}
+    </script>
+    
+    <!-- 核心基础设施（必须最先加载） -->
+    
+    <!-- 功能模块（按依赖顺序加载） -->
+    <script src="js/navigation.js" defer></script>
+    <script src="js/audio-sync.js" defer></script>
+    <script src="js/glossary.js" defer></script>
+    
+    <!-- 词频工具模块 -->
+    <script src="js/word-frequency-manager.js" defer></script>
+    <script src="js/word-frequency-ui.js" defer></script>
+    <script src="js/word-highlight.js" defer></script>
+    
+    <!-- 主应用（最后加载） -->
+    <script src="js/main.js" defer></script>
+</body>
+</html>
