@@ -1,5 +1,23 @@
 [
   {
+  "id": "tools",
+  "title": "学习工具",
+  "type": "category-with-submenu", 
+  "icon": "🛠️",
+  "description": "强大的英语学习辅助工具",
+  "children": [
+    {
+      "id": "word-frequency",
+      "title": "词频分析工具",
+      "type": "tool",
+      "url": "word-frequency.html",
+      "icon": "📊",
+      "description": "分析文本词汇频率，制定学习计划",
+      "openInNewTab": false
+    }
+  ]
+}
+  {
     "id": "all-articles",
     "series": "所有文章",
     "seriesId": "all-articles",
