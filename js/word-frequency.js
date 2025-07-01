@@ -1,408 +1,36 @@
-// js/word-frequency.js - 完全修复版 v4.4
+// js/word-frequency.js - 简化重构版 v1.0 (专注可用性和双模式搜索)
 window.EnglishSite = window.EnglishSite || {};
 
-// 智能词频分类器
-class IntelligentWordFrequencyClassifier {
+// 🎯 简化的词干提取器 - 保留核心功能，移除复杂缓存
+class SimplifiedWordStemmer {
     constructor() {
-        this.classificationMethods = {
-            'percentile': this.percentileBasedClassification.bind(this),
-            'adaptive': this.adaptiveThresholdClassification.bind(this),
-            'statistical': this.statisticalDistributionClassification.bind(this),
-            'tfidf': this.tfidfBasedClassification.bind(this),
-            'hybrid': this.hybridClassification.bind(this)
-        };
+        // 🎯 精简不规则动词映射 - 只保留高频词
+        this.irregularVerbsMap = new Map([
+            ['am', 'be'], ['is', 'be'], ['are', 'be'], ['was', 'be'], ['were', 'be'], ['been', 'be'], ['being', 'be'],
+            ['took', 'take'], ['taken', 'take'], ['taking', 'take'], ['takes', 'take'],
+            ['went', 'go'], ['gone', 'go'], ['going', 'go'], ['goes', 'go'],
+            ['came', 'come'], ['coming', 'come'], ['comes', 'come'],
+            ['saw', 'see'], ['seen', 'see'], ['seeing', 'see'], ['sees', 'see'],
+            ['did', 'do'], ['done', 'do'], ['doing', 'do'], ['does', 'do'],
+            ['had', 'have'], ['having', 'have'], ['has', 'have'],
+            ['said', 'say'], ['saying', 'say'], ['says', 'say'],
+            ['got', 'get'], ['gotten', 'get'], ['getting', 'get'], ['gets', 'get'],
+            ['made', 'make'], ['making', 'make'], ['makes', 'make'],
+            ['knew', 'know'], ['known', 'know'], ['knowing', 'know'], ['knows', 'know']
+        ]);
         
-        this.defaultMethod = 'hybrid';
-    }
-    
-    classifyWords(wordData, globalStats, method = 'auto') {
-        if (!wordData || wordData.length === 0) {
-            return this.getEmptyClassification();
-        }
+        // 🎯 简单缓存 - 移除复杂的LRU
+        this.stemCache = new Map();
+        this.maxCacheSize = 500;
         
-        if (method === 'auto') {
-            method = this.selectBestMethod(wordData, globalStats);
-        }
-        
-        const classifier = this.classificationMethods[method] || this.classificationMethods[this.defaultMethod];
-        const result = classifier(wordData, globalStats);
-        
-        result.metadata = {
-            method: method,
-            totalWords: wordData.length,
-            globalStats: globalStats,
-            timestamp: Date.now()
-        };
-        
-        return result;
-    }
-    
-    percentileBasedClassification(wordData, globalStats) {
-        const frequencies = wordData.map(w => w.totalCount).sort((a, b) => b - a);
-        
-        const p95 = this.getPercentile(frequencies, 95);
-        const p80 = this.getPercentile(frequencies, 80);
-        const p60 = this.getPercentile(frequencies, 60);
-        const p30 = this.getPercentile(frequencies, 30);
-        
-        const classification = {
-            'ultra-high': [],
-            'high': [],
-            'medium': [],
-            'low': [],
-            'rare': []
-        };
-        
-        const thresholds = {
-            ultraHigh: p95,
-            high: p80,
-            medium: p60,
-            low: p30
-        };
-        
-        wordData.forEach(word => {
-            const count = word.totalCount;
-            if (count >= p95) {
-                classification['ultra-high'].push(word);
-            } else if (count >= p80) {
-                classification['high'].push(word);
-            } else if (count >= p60) {
-                classification['medium'].push(word);
-            } else if (count >= p30) {
-                classification['low'].push(word);
-            } else {
-                classification['rare'].push(word);
-            }
-        });
-        
-        return {
-            classification,
-            thresholds,
-            method: 'percentile',
-            description: '基于统计百分位数的智能分类'
-        };
-    }
-    
-    adaptiveThresholdClassification(wordData, globalStats) {
-        const { totalArticles, totalWords, totalOccurrences } = globalStats;
-        
-        const avgWordFrequency = totalOccurrences / totalWords;
-        const scaleFactor = Math.log10(Math.max(totalArticles, 10));
-        
-        const thresholds = {
-            ultraHigh: Math.max(30, Math.round(avgWordFrequency * scaleFactor * 3)),
-            high: Math.max(15, Math.round(avgWordFrequency * scaleFactor * 2)),
-            medium: Math.max(8, Math.round(avgWordFrequency * scaleFactor * 1.2)),
-            low: Math.max(3, Math.round(avgWordFrequency * scaleFactor * 0.8))
-        };
-        
-        const docFreqWeight = Math.min(0.3, totalArticles / 1000);
-        
-        const classification = {
-            'ultra-high': [],
-            'high': [],
-            'medium': [],
-            'low': [],
-            'rare': []
-        };
-        
-        wordData.forEach(word => {
-            const adjustedScore = word.totalCount + (word.articleCount * docFreqWeight * 10);
-            
-            if (adjustedScore >= thresholds.ultraHigh) {
-                classification['ultra-high'].push(word);
-            } else if (adjustedScore >= thresholds.high) {
-                classification['high'].push(word);
-            } else if (adjustedScore >= thresholds.medium) {
-                classification['medium'].push(word);
-            } else if (adjustedScore >= thresholds.low) {
-                classification['low'].push(word);
-            } else {
-                classification['rare'].push(word);
-            }
-        });
-        
-        return {
-            classification,
-            thresholds,
-            scaleFactor,
-            method: 'adaptive',
-            description: `基于${totalArticles}篇文章的自适应智能分类`
-        };
-    }
-    
-    statisticalDistributionClassification(wordData, globalStats) {
-        const frequencies = wordData.map(w => w.totalCount);
-        const mean = frequencies.reduce((a, b) => a + b, 0) / frequencies.length;
-        const stdDev = Math.sqrt(frequencies.reduce((sq, f) => sq + Math.pow(f - mean, 2), 0) / frequencies.length);
-        
-        const thresholds = {
-            ultraHigh: mean + 2 * stdDev,
-            high: mean + stdDev,
-            medium: mean,
-            low: mean - 0.5 * stdDev
-        };
-        
-        const classification = {
-            'ultra-high': [],
-            'high': [],
-            'medium': [],
-            'low': [],
-            'rare': []
-        };
-        
-        wordData.forEach(word => {
-            const count = word.totalCount;
-            if (count >= thresholds.ultraHigh) {
-                classification['ultra-high'].push(word);
-            } else if (count >= thresholds.high) {
-                classification['high'].push(word);
-            } else if (count >= thresholds.medium) {
-                classification['medium'].push(word);
-            } else if (count >= thresholds.low) {
-                classification['low'].push(word);
-            } else {
-                classification['rare'].push(word);
-            }
-        });
-        
-        return {
-            classification,
-            thresholds,
-            statistics: { mean, stdDev },
-            method: 'statistical',
-            description: '基于统计分布的智能分类'
-        };
-    }
-    
-    tfidfBasedClassification(wordData, globalStats) {
-        const { totalArticles } = globalStats;
-        
-        const wordsWithScore = wordData.map(word => {
-            const tf = word.totalCount;
-            const idf = Math.log(totalArticles / Math.max(word.articleCount, 1));
-            const tfidfScore = tf * Math.max(idf, 0.5);
-            
-            return {
-                ...word,
-                tfidfScore,
-                tf,
-                idf
-            };
-        });
-        
-        wordsWithScore.sort((a, b) => b.tfidfScore - a.tfidfScore);
-        
-        const scores = wordsWithScore.map(w => w.tfidfScore);
-        const p95 = this.getPercentile(scores, 95);
-        const p80 = this.getPercentile(scores, 80);
-        const p60 = this.getPercentile(scores, 60);
-        const p30 = this.getPercentile(scores, 30);
-        
-        const classification = {
-            'ultra-high': [],
-            'high': [],
-            'medium': [],
-            'low': [],
-            'rare': []
-        };
-        
-        const thresholds = {
-            ultraHigh: p95,
-            high: p80,
-            medium: p60,
-            low: p30
-        };
-        
-        wordsWithScore.forEach(word => {
-            const score = word.tfidfScore;
-            if (score >= p95) {
-                classification['ultra-high'].push(word);
-            } else if (score >= p80) {
-                classification['high'].push(word);
-            } else if (score >= p60) {
-                classification['medium'].push(word);
-            } else if (score >= p30) {
-                classification['low'].push(word);
-            } else {
-                classification['rare'].push(word);
-            }
-        });
-        
-        return {
-            classification,
-            thresholds,
-            method: 'tfidf',
-            description: '基于TF-IDF重要性的智能分类'
-        };
-    }
-    
-    hybridClassification(wordData, globalStats) {
-        const { totalArticles, totalWords, totalOccurrences } = globalStats;
-        
-        const wordsWithHybridScore = wordData.map(word => {
-            const freq = word.totalCount;
-            const docFreq = word.articleCount;
-            
-            const maxFreq = Math.max(...wordData.map(w => w.totalCount));
-            const freqScore = freq / maxFreq;
-            
-            const docFreqScore = docFreq / totalArticles;
-            
-            const totalWordTypes = wordData.length;
-            const rarityScore = 1 - (wordData.filter(w => w.totalCount >= freq).length / totalWordTypes);
-            
-            const avgFreqPerDoc = docFreq > 0 ? freq / docFreq : 0;
-            const distributionScore = Math.min(1, avgFreqPerDoc / (totalOccurrences / totalArticles));
-            
-            const hybridScore = (
-                freqScore * 0.4 +
-                docFreqScore * 0.3 +
-                rarityScore * 0.2 +
-                distributionScore * 0.1
-            );
-            
-            return {
-                ...word,
-                hybridScore,
-                freqScore,
-                docFreqScore,
-                rarityScore,
-                distributionScore
-            };
-        });
-        
-        wordsWithHybridScore.sort((a, b) => b.hybridScore - a.hybridScore);
-        
-        let ratios;
-        if (totalWords < 1000) {
-            ratios = { ultraHigh: 0.05, high: 0.15, medium: 0.30, low: 0.35 };
-        } else if (totalWords < 5000) {
-            ratios = { ultraHigh: 0.03, high: 0.12, medium: 0.35, low: 0.35 };
-        } else {
-            ratios = { ultraHigh: 0.02, high: 0.08, medium: 0.25, low: 0.40 };
-        }
-        
-        const scores = wordsWithHybridScore.map(w => w.hybridScore);
-        const thresholds = {
-            ultraHigh: this.getPercentile(scores, (1 - ratios.ultraHigh) * 100),
-            high: this.getPercentile(scores, (1 - ratios.ultraHigh - ratios.high) * 100),
-            medium: this.getPercentile(scores, (1 - ratios.ultraHigh - ratios.high - ratios.medium) * 100),
-            low: this.getPercentile(scores, (1 - ratios.ultraHigh - ratios.high - ratios.medium - ratios.low) * 100)
-        };
-        
-        const classification = {
-            'ultra-high': [],
-            'high': [],
-            'medium': [],
-            'low': [],
-            'rare': []
-        };
-        
-        wordsWithHybridScore.forEach(word => {
-            const score = word.hybridScore;
-            if (score >= thresholds.ultraHigh) {
-                classification['ultra-high'].push(word);
-            } else if (score >= thresholds.high) {
-                classification['high'].push(word);
-            } else if (score >= thresholds.medium) {
-                classification['medium'].push(word);
-            } else if (score >= thresholds.low) {
-                classification['low'].push(word);
-            } else {
-                classification['rare'].push(word);
-            }
-        });
-        
-        return {
-            classification,
-            thresholds,
-            ratios,
-            method: 'hybrid',
-            description: '综合多种因素的混合智能分类',
-            algorithmWeights: {
-                frequency: 0.4,
-                documentFrequency: 0.3,
-                rarity: 0.2,
-                distribution: 0.1
-            }
-        };
-    }
-    
-    selectBestMethod(wordData, globalStats) {
-        const { totalArticles, totalWords } = globalStats;
-        
-        if (totalArticles < 50) {
-            return 'percentile';
-        } else if (totalArticles < 500) {
-            return 'adaptive';
-        } else if (totalWords > 10000) {
-            return 'hybrid';
-        } else {
-            return 'statistical';
-        }
-    }
-    
-    getPercentile(arr, percentile) {
-        const sorted = [...arr].sort((a, b) => a - b);
-        const index = Math.ceil((percentile / 100) * sorted.length) - 1;
-        return sorted[Math.max(0, Math.min(index, sorted.length - 1))];
-    }
-    
-    getEmptyClassification() {
-        return {
-            classification: {
-                'ultra-high': [],
-                'high': [],
-                'medium': [],
-                'low': [],
-                'rare': []
-            },
-            thresholds: {},
-            method: 'empty',
-            description: '空数据集'
-        };
-    }
-    
-    getClassificationLabels(method, totalArticles = 0) {
-        const baseLabels = {
-            'ultra-high': { emoji: '🔥', name: '极高频词', color: '#d32f2f' },
-            'high': { emoji: '📈', name: '高频词', color: '#f57c00' },
-            'medium': { emoji: '📊', name: '中频词', color: '#388e3c' },
-            'low': { emoji: '📉', name: '低频词', color: '#1976d2' },
-            'rare': { emoji: '💎', name: '稀有词', color: '#757575' }
-        };
-        
-        if (totalArticles > 1000) {
-            baseLabels['ultra-high'].description = '核心关键词，出现频率极高';
-            baseLabels['high'].description = '重要词汇，经常出现';
-            baseLabels['medium'].description = '常用词汇，适中出现';
-            baseLabels['low'].description = '一般词汇，偶尔出现';
-            baseLabels['rare'].description = '特殊词汇，很少出现';
-        } else {
-            baseLabels['ultra-high'].description = '最常见词汇';
-            baseLabels['high'].description = '常见词汇';
-            baseLabels['medium'].description = '一般词汇';
-            baseLabels['low'].description = '较少词汇';
-            baseLabels['rare'].description = '稀有词汇';
-        }
-        
-        return baseLabels;
-    }
-}
-
-// 性能优化器
-class PerformanceOptimizer {
-    constructor() {
+        // 🎯 预编译正则表达式
         this.regexPool = {
             punctuation: /[^\w\s'-]/g,
             whitespace: /\s+/g,
             trimDashes: /^[-']+|[-']+$/g,
             alphaOnly: /^[a-zA-Z]+$/,
-            digits: /^\d+$/,
-            sentences: /[.!?]+/,
             vowels: /[aeiou]/,
-            escapeChars: /[.*+?^${}()|[\]\\]/g,
+            
             suffixes: {
                 ies: /ies$/,
                 ves: /ves$/,
@@ -420,120 +48,44 @@ class PerformanceOptimizer {
             }
         };
         
-        this.objectPool = {
-            arrays: [],
-            maps: [],
-            maxPoolSize: 30
-        };
-        
-        this.perfCounters = {
-            regexReuse: 0,
-            objectReuse: 0,
-            cacheHits: 0
-        };
-    }
-    
-    getArray() {
-        this.perfCounters.objectReuse++;
-        return this.objectPool.arrays.pop() || [];
-    }
-    
-    releaseArray(arr) {
-        if (this.objectPool.arrays.length < this.objectPool.maxPoolSize) {
-            arr.length = 0;
-            this.objectPool.arrays.push(arr);
-        }
-    }
-    
-    getMap() {
-        this.perfCounters.objectReuse++;
-        const map = this.objectPool.maps.pop() || new Map();
-        map.clear();
-        return map;
-    }
-    
-    releaseMap(map) {
-        if (this.objectPool.maps.length < this.objectPool.maxPoolSize) {
-            map.clear();
-            this.objectPool.maps.push(map);
-        }
-    }
-    
-    escapeRegex(string) {
-        this.perfCounters.regexReuse++;
-        return string.replace(this.regexPool.escapeChars, '\\$&');
-    }
-    
-    getStats() {
-        return { ...this.perfCounters };
-    }
-    
-    resetStats() {
-        Object.keys(this.perfCounters).forEach(key => {
-            this.perfCounters[key] = 0;
-        });
-    }
-}
-
-// 词干提取器 - 修复noodle问题
-class WordStemmer {
-    constructor() {
-        this.optimizer = new PerformanceOptimizer();
-        
-        this.irregularVerbsMap = new Map([
-            ['am', 'be'], ['is', 'be'], ['are', 'be'], ['was', 'be'], ['were', 'be'], ['been', 'be'], ['being', 'be'],
-            ['took', 'take'], ['taken', 'take'], ['taking', 'take'], ['takes', 'take'],
-            ['went', 'go'], ['gone', 'go'], ['going', 'go'], ['goes', 'go'],
-            ['came', 'come'], ['coming', 'come'], ['comes', 'come'],
-            ['saw', 'see'], ['seen', 'see'], ['seeing', 'see'], ['sees', 'see'],
-            ['did', 'do'], ['done', 'do'], ['doing', 'do'], ['does', 'do'],
-            ['had', 'have'], ['having', 'have'], ['has', 'have'],
-            ['said', 'say'], ['saying', 'say'], ['says', 'say'],
-            ['got', 'get'], ['gotten', 'get'], ['getting', 'get'], ['gets', 'get'],
-            ['made', 'make'], ['making', 'make'], ['makes', 'make'],
-            ['knew', 'know'], ['known', 'know'], ['knowing', 'know'], ['knows', 'know']
-        ]);
-        
-        this.stemCache = new Map();
-        this.maxCacheSize = 3000;
-        this.customMergeRules = new Map();
-        
+        // 🎯 精简后缀规则
         this.suffixRules = [
-            { pattern: 'ies', replacement: 'y', minLength: 5, regex: this.optimizer.regexPool.suffixes.ies },
-            { pattern: 'ves', replacement: 'f', minLength: 5, regex: this.optimizer.regexPool.suffixes.ves },
-            { pattern: 'ses', replacement: 's', minLength: 5, regex: this.optimizer.regexPool.suffixes.ses },
-            { pattern: 'ches', replacement: 'ch', minLength: 6, regex: this.optimizer.regexPool.suffixes.ches },
-            { pattern: 'shes', replacement: 'sh', minLength: 6, regex: this.optimizer.regexPool.suffixes.shes },
-            { pattern: 's', replacement: '', minLength: 4, regex: this.optimizer.regexPool.suffixes.s, exclude: this.optimizer.regexPool.suffixes.ss },
-            { pattern: 'ied', replacement: 'y', minLength: 5, regex: this.optimizer.regexPool.suffixes.ied },
-            { pattern: 'ed', replacement: '', minLength: 4, regex: this.optimizer.regexPool.suffixes.ed },
-            { pattern: 'ing', replacement: '', minLength: 5, regex: this.optimizer.regexPool.suffixes.ing },
-            { pattern: 'ly', replacement: '', minLength: 5, regex: this.optimizer.regexPool.suffixes.ly },
-            { pattern: 'est', replacement: '', minLength: 5, regex: this.optimizer.regexPool.suffixes.est },
-            { pattern: 'er', replacement: '', minLength: 4, regex: this.optimizer.regexPool.suffixes.er }
+            { pattern: 'ies', replacement: 'y', minLength: 5, regex: this.regexPool.suffixes.ies },
+            { pattern: 'ves', replacement: 'f', minLength: 5, regex: this.regexPool.suffixes.ves },
+            { pattern: 'ses', replacement: 's', minLength: 5, regex: this.regexPool.suffixes.ses },
+            { pattern: 'ches', replacement: 'ch', minLength: 6, regex: this.regexPool.suffixes.ches },
+            { pattern: 'shes', replacement: 'sh', minLength: 6, regex: this.regexPool.suffixes.shes },
+            { pattern: 's', replacement: '', minLength: 4, regex: this.regexPool.suffixes.s, exclude: this.regexPool.suffixes.ss },
+            { pattern: 'ied', replacement: 'y', minLength: 5, regex: this.regexPool.suffixes.ied },
+            { pattern: 'ed', replacement: '', minLength: 4, regex: this.regexPool.suffixes.ed },
+            { pattern: 'ing', replacement: '', minLength: 5, regex: this.regexPool.suffixes.ing },
+            { pattern: 'ly', replacement: '', minLength: 5, regex: this.regexPool.suffixes.ly },
+            { pattern: 'est', replacement: '', minLength: 5, regex: this.regexPool.suffixes.est },
+            { pattern: 'er', replacement: '', minLength: 4, regex: this.regexPool.suffixes.er }
         ];
         
-        this.loadPresetRules();
+        console.log('✅ 简化词干提取器已初始化');
     }
     
+    // 🎯 获取词干 - 简化缓存逻辑
     getStem(word) {
         const lowerWord = word.toLowerCase();
         
+        // 简单缓存查找
         if (this.stemCache.has(lowerWord)) {
-            this.optimizer.perfCounters.cacheHits++;
             return this.stemCache.get(lowerWord);
         }
         
         let result;
         
-        if (this.customMergeRules.has(lowerWord)) {
-            result = this.customMergeRules.get(lowerWord);
-        } else if (this.irregularVerbsMap.has(lowerWord)) {
+        // 查找顺序：不规则动词 > 后缀规则
+        if (this.irregularVerbsMap.has(lowerWord)) {
             result = this.irregularVerbsMap.get(lowerWord);
         } else {
-            result = this.applySuffixRulesOptimized(lowerWord);
+            result = this.applySuffixRules(lowerWord);
         }
         
+        // 简单缓存管理
         if (this.stemCache.size >= this.maxCacheSize) {
             const firstKey = this.stemCache.keys().next().value;
             this.stemCache.delete(firstKey);
@@ -543,7 +95,8 @@ class WordStemmer {
         return result;
     }
     
-    applySuffixRulesOptimized(word) {
+    // 应用后缀规则
+    applySuffixRules(word) {
         const wordLength = word.length;
         if (wordLength < 4) return word;
         
@@ -553,7 +106,7 @@ class WordStemmer {
                 (!rule.exclude || !rule.exclude.test(word))) {
                 
                 const stem = word.replace(rule.regex, rule.replacement);
-                if (this.isValidStemOptimized(stem, word)) {
+                if (this.isValidStem(stem, word)) {
                     return stem;
                 }
             }
@@ -561,353 +114,34 @@ class WordStemmer {
         return word;
     }
     
-    isValidStemOptimized(stem, original) {
+    // 词干验证
+    isValidStem(stem, original) {
         const stemLen = stem.length;
-        if (stemLen < 2) return false;
-        
         const origLen = original.length;
-        if (stemLen < origLen * 0.4) return false;
         
-        return stemLen <= 2 || this.optimizer.regexPool.vowels.test(stem);
+        return stemLen >= 2 && 
+               stemLen >= origLen * 0.4 && 
+               (stemLen <= 2 || this.regexPool.vowels.test(stem));
     }
     
-    addCustomRule(variant, baseForm) {
-        this.customMergeRules.set(variant.toLowerCase(), baseForm.toLowerCase());
-        this.clearCacheEntry(variant.toLowerCase());
-    }
-    
-    addCustomRules(rules) {
-        rules.forEach(([variant, baseForm]) => {
-            this.addCustomRule(variant, baseForm);
-        });
-    }
-    
-    clearCacheEntry(word) {
-        this.stemCache.delete(word.toLowerCase());
-    }
-    
+    // 清理缓存
     clearCache() {
         this.stemCache.clear();
     }
-    
-    loadPresetRules() {
-        const presetRules = [
-            // 修复：确保noodle不会被错误处理
-            ['noodles', 'noodle'], 
-            ['cookies', 'cookie'], 
-            ['studies', 'study'],
-            ['countries', 'country'], 
-            ['companies', 'company'], 
-            ['stories', 'story'],
-            ['cities', 'city'], 
-            ['families', 'family'], 
-            ['activities', 'activity']
-        ];
-        
-        this.addCustomRules(presetRules);
-    }
-    
-    getCacheStats() {
-        return {
-            cacheSize: this.stemCache.size,
-            maxCacheSize: this.maxCacheSize,
-            hitRate: this.optimizer.perfCounters.cacheHits
-        };
-    }
 }
 
-// Web Worker管理器
-class WebWorkerManager {
+// 🎯 简化的词频分析器 - 专注核心搜索功能
+class SimplifiedWordFrequencyAnalyzer {
     constructor() {
-        this.worker = null;
-        this.isWorkerSupported = typeof Worker !== 'undefined';
-        this.isWorkerReady = false;
-        this.requestId = 0;
-        this.pendingRequests = new Map();
-        this.workerUrl = null;
+        this.stemmer = new SimplifiedWordStemmer();
         
-        this.workerConfig = {
-            enabled: false,
-            maxRetries: 2,
-            timeout: 25000,
-            batchSize: 4
-        };
-        
-        this.workerStats = {
-            messagesProcessed: 0,
-            errors: 0,
-            avgResponseTime: 0,
-            totalResponseTime: 0
-        };
-    }
-    
-    async initWorker() {
-        if (!this.isWorkerSupported) {
-            console.warn('当前浏览器不支持Web Worker');
-            return false;
-        }
-        
-        try {
-            try {
-                const response = await fetch('js/word-frequency-worker.js');
-                if (!response.ok) {
-                    console.warn('Worker文件不存在，跳过Worker初始化');
-                    return false;
-                }
-            } catch (error) {
-                console.warn('无法访问Worker文件，跳过Worker初始化');
-                return false;
-            }
-            
-            this.worker = new Worker('js/word-frequency-worker.js');
-            
-            this.setupWorkerListeners();
-            await this.waitForWorkerReady();
-            
-            this.workerConfig.enabled = true;
-            this.isWorkerReady = true;
-            
-            console.log('✅ Web Worker已成功初始化');
-            return true;
-            
-        } catch (error) {
-            console.error('❌ Web Worker初始化失败:', error);
-            this.cleanup();
-            return false;
-        }
-    }
-    
-    setupWorkerListeners() {
-        this.worker.addEventListener('message', (e) => {
-            this.handleWorkerMessage(e.data);
-        });
-        
-        this.worker.addEventListener('error', (error) => {
-            console.error('Web Worker错误:', error);
-            this.workerStats.errors++;
-            this.handleWorkerError(error);
-        });
-    }
-    
-    waitForWorkerReady() {
-        return new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-                reject(new Error('Worker初始化超时'));
-            }, 8000);
-            
-            const messageHandler = (e) => {
-                if (e.data.type === 'ready') {
-                    clearTimeout(timeout);
-                    this.worker.removeEventListener('message', messageHandler);
-                    resolve();
-                }
-            };
-            
-            this.worker.addEventListener('message', messageHandler);
-        });
-    }
-    
-    handleWorkerMessage(message) {
-        const { type, data, requestId } = message;
-        
-        this.workerStats.messagesProcessed++;
-        
-        if (requestId && this.pendingRequests.has(requestId)) {
-            const request = this.pendingRequests.get(requestId);
-            const responseTime = Date.now() - request.startTime;
-            this.updateResponseTimeStats(responseTime);
-        }
-        
-        switch (type) {
-            case 'ready':
-                console.log('🚀 Worker就绪:', data.message);
-                break;
-                
-            case 'analyzeResult':
-            case 'batchResult':
-            case 'stats':
-            case 'pong':
-            case 'rulesUpdated':
-                this.resolveRequest(requestId, data);
-                break;
-                
-            case 'progress':
-                this.handleProgress(requestId, data);
-                break;
-                
-            case 'error':
-                this.rejectRequest(requestId, new Error(data.message));
-                break;
-        }
-    }
-    
-    handleWorkerError(error) {
-        this.pendingRequests.forEach((request, requestId) => {
-            this.rejectRequest(requestId, error);
-        });
-        
-        this.isWorkerReady = false;
-        
-        if (this.workerStats.errors < this.workerConfig.maxRetries) {
-            console.log('🔄 尝试重新启动Worker...');
-            setTimeout(() => {
-                this.initWorker();
-            }, 1500);
-        } else {
-            console.error('❌ Worker重启次数过多，禁用Worker模式');
-            this.workerConfig.enabled = false;
-        }
-    }
-    
-    resolveRequest(requestId, data) {
-        const request = this.pendingRequests.get(requestId);
-        if (request) {
-            clearTimeout(request.timeoutId);
-            this.pendingRequests.delete(requestId);
-            request.resolve(data);
-        }
-    }
-    
-    rejectRequest(requestId, error) {
-        const request = this.pendingRequests.get(requestId);
-        if (request) {
-            clearTimeout(request.timeoutId);
-            this.pendingRequests.delete(requestId);
-            request.reject(error);
-        }
-    }
-    
-    handleProgress(requestId, data) {
-        const request = this.pendingRequests.get(requestId);
-        if (request && request.onProgress) {
-            request.onProgress(data.progress);
-        }
-    }
-    
-    updateResponseTimeStats(responseTime) {
-        this.workerStats.totalResponseTime += responseTime;
-        this.workerStats.avgResponseTime = Math.round(
-            this.workerStats.totalResponseTime / this.workerStats.messagesProcessed
-        );
-    }
-    
-    async analyzeBatch(articles, onProgress) {
-        if (!this.isAvailable()) {
-            throw new Error('Worker不可用');
-        }
-        
-        return new Promise((resolve, reject) => {
-            const requestId = ++this.requestId;
-            const timeoutId = setTimeout(() => {
-                this.rejectRequest(requestId, new Error('Worker请求超时'));
-            }, this.workerConfig.timeout);
-            
-            this.pendingRequests.set(requestId, {
-                resolve,
-                reject,
-                timeoutId,
-                startTime: Date.now(),
-                onProgress
-            });
-            
-            this.worker.postMessage({
-                type: 'analyzeBatch',
-                requestId,
-                payload: {
-                    articles,
-                    batchSize: this.workerConfig.batchSize
-                }
-            });
-        });
-    }
-    
-    async updateCustomRules(rules) {
-        if (!this.isAvailable()) {
-            return false;
-        }
-        
-        return new Promise((resolve, reject) => {
-            const requestId = ++this.requestId;
-            const timeoutId = setTimeout(() => {
-                this.rejectRequest(requestId, new Error('规则更新超时'));
-            }, 5000);
-            
-            this.pendingRequests.set(requestId, {
-                resolve,
-                reject,
-                timeoutId,
-                startTime: Date.now()
-            });
-            
-            this.worker.postMessage({
-                type: 'updateCustomRules',
-                requestId,
-                payload: { rules }
-            });
-        });
-    }
-    
-    async getWorkerStats() {
-        if (!this.isAvailable()) {
-            return null;
-        }
-        
-        return new Promise((resolve, reject) => {
-            const requestId = ++this.requestId;
-            const timeoutId = setTimeout(() => {
-                this.rejectRequest(requestId, new Error('获取统计超时'));
-            }, 3000);
-            
-            this.pendingRequests.set(requestId, {
-                resolve,
-                reject,
-                timeoutId,
-                startTime: Date.now()
-            });
-            
-            this.worker.postMessage({
-                type: 'getStats',
-                requestId
-            });
-        });
-    }
-    
-    isAvailable() {
-        return this.isWorkerReady && this.workerConfig.enabled;
-    }
-    
-    configure(config) {
-        this.workerConfig = { ...this.workerConfig, ...config };
-    }
-    
-    cleanup() {
-        if (this.worker) {
-            this.worker.terminate();
-            this.worker = null;
-        }
-        
-        if (this.workerUrl) {
-            URL.revokeObjectURL(this.workerUrl);
-            this.workerUrl = null;
-        }
-        
-        this.pendingRequests.clear();
-        this.isWorkerReady = false;
-        this.workerConfig.enabled = false;
-    }
-}
-
-// 词频分析器 - 修复搜索逻辑
-class WordFrequencyAnalyzer {
-    constructor() {
+        // 核心数据结构
         this.wordStats = new Map();
         this.articleContents = new Map();
-        this.variantIndex = new Map(); // variant -> Set<articleId>
-        this.articleVariants = new Map(); // articleId -> Map<variant, {count, contexts}>
+        this.variantIndex = new Map(); // 用于精确搜索
+        this.articleVariants = new Map(); // 用于精确搜索
         
-        this.stemmer = new WordStemmer();
-        this.optimizer = new PerformanceOptimizer();
-        
+        // 🎯 精简停用词集合
         this.stopWordsSet = new Set([
             'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 
             'by', 'from', 'this', 'that', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
@@ -916,162 +150,107 @@ class WordFrequencyAnalyzer {
             'neil', 'beth'
         ]);
         
-        this.cache = window.EnglishSite.CacheManager?.get('wordFreq') || 
-                     window.EnglishSite.CacheManager?.create('wordFreq', 150, 3600000);
-        
-        this.batchConfig = {
-            chunkSize: 1500,
-            maxConcurrent: 2,
-            yieldInterval: 80
+        // 🎯 预编译正则表达式
+        this.regexPool = {
+            punctuation: /[^\w\s'-]/g,
+            whitespace: /\s+/g,
+            trimDashes: /^[-']+|[-']+$/g,
+            alphaOnly: /^[a-zA-Z]+$/,
+            digits: /^\d+$/,
+            sentences: /[.!?]+/
         };
+        
+        console.log('✅ 简化词频分析器已初始化');
     }
-
-    processWorkerResult(result) {
-        const { articleId, title, wordCount, uniqueWords, wordCounts } = result;
-        
-        if (!wordCounts || !Array.isArray(wordCounts)) {
-            console.warn('Invalid worker result for article:', articleId);
-            return;
-        }
-        
-        wordCounts.forEach(({ baseWord, totalCount, variants, contexts }) => {
-            if (!baseWord || !variants) return;
+    
+    // 🎯 分析文章 - 简化错误处理
+    analyzeArticle(articleId, content, title) {
+        try {
+            console.log(`📝 分析文章: ${articleId}`);
             
-            if (!this.wordStats.has(baseWord)) {
-                this.wordStats.set(baseWord, { 
-                    totalCount: 0, 
-                    variants: new Map(),
-                    articles: new Map()
-                });
+            const words = this.extractWords(content);
+            const wordCounts = new Map();
+            
+            // 统计词频
+            for (const originalWord of words) {
+                if (this.isValidWord(originalWord)) {
+                    const baseWord = this.stemmer.getStem(originalWord);
+                    
+                    let wordData = wordCounts.get(baseWord);
+                    if (!wordData) {
+                        wordData = { totalCount: 0, variants: new Map() };
+                        wordCounts.set(baseWord, wordData);
+                    }
+                    
+                    wordData.totalCount++;
+                    const currentCount = wordData.variants.get(originalWord) || 0;
+                    wordData.variants.set(originalWord, currentCount + 1);
+                }
             }
             
-            const stats = this.wordStats.get(baseWord);
-            stats.totalCount += totalCount;
-            
-            const variantsArray = Array.isArray(variants) ? variants : Array.from(variants || []);
-            
-            variantsArray.forEach(([variant, count]) => {
-                if (!variant || typeof variant !== 'string') return;
-                
-                stats.variants.set(variant, (stats.variants.get(variant) || 0) + count);
-                this.updateVariantIndex(variant, articleId, count, contexts || []);
-            });
-            
-            stats.articles.set(articleId, {
-                count: totalCount,
-                title,
-                contexts: contexts || [],
-                variants: variantsArray
-            });
-        });
-        
-        this.articleContents.set(articleId, { 
-            content: '',
-            title, 
-            wordCount: wordCount || 0,
-            uniqueWords: uniqueWords || 0
-        });
-    }
-
-    analyzeArticle(articleId, content, title) {
-        const words = this.extractWordsOptimized(content);
-        const wordCounts = this.optimizer.getMap();
-        
-        try {
-            this.processWordsBatchOptimized(words, wordCounts);
+            // 更新全局统计
             this.updateGlobalStats(articleId, title, content, wordCounts);
             
-            this.articleContents.set(articleId, { 
-                content, 
-                title, 
+            // 保存文章内容信息
+            this.articleContents.set(articleId, {
+                content,
+                title,
                 wordCount: words.length,
                 uniqueWords: wordCounts.size
             });
             
-        } finally {
-            this.optimizer.releaseMap(wordCounts);
-        }
-    }
-    
-    updateVariantIndex(variant, articleId, count, contexts) {
-        if (!variant || !articleId) return;
-        
-        try {
-            if (!this.variantIndex.has(variant)) {
-                this.variantIndex.set(variant, new Set());
-            }
-            this.variantIndex.get(variant).add(articleId);
+            console.log(`✅ 文章分析完成: ${articleId} (${words.length}词, ${wordCounts.size}唯一)`);
             
-            if (!this.articleVariants.has(articleId)) {
-                this.articleVariants.set(articleId, new Map());
-            }
-            this.articleVariants.get(articleId).set(variant, {
-                count: count || 0,
-                contexts: Array.isArray(contexts) ? contexts : []
-            });
         } catch (error) {
-            console.warn('Failed to update variant index:', error);
+            console.error(`❌ 文章分析失败 ${articleId}:`, error);
         }
     }
     
-    extractWordsOptimized(text) {
-        const words = this.optimizer.getArray();
+    // 🎯 提取单词 - 简化逻辑
+    extractWords(text) {
+        if (!text || typeof text !== 'string') {
+            return [];
+        }
         
-        try {
-            const cleanText = text
-                .toLowerCase()
-                .replace(this.optimizer.regexPool.punctuation, ' ')
-                .replace(this.optimizer.regexPool.whitespace, ' ');
+        // 清理文本
+        const cleanText = text
+            .toLowerCase()
+            .replace(this.regexPool.punctuation, ' ')
+            .replace(this.regexPool.whitespace, ' ');
+        
+        const rawWords = cleanText.split(' ');
+        const words = [];
+        
+        for (const word of rawWords) {
+            const cleanWord = word.replace(this.regexPool.trimDashes, '');
             
-            const rawWords = cleanText.split(' ');
-            
-            for (let i = 0; i < rawWords.length; i++) {
-                const word = rawWords[i].replace(this.optimizer.regexPool.trimDashes, '');
-                
-                if (this.isValidWordOptimized(word)) {
-                    words.push(word);
-                }
+            if (this.isValidWord(cleanWord)) {
+                words.push(cleanWord);
             }
-            
-            return words.slice();
-            
-        } finally {
-            this.optimizer.releaseArray(words);
         }
+        
+        return words;
     }
     
-    isValidWordOptimized(word) {
+    // 🎯 验证单词 - 简化规则
+    isValidWord(word) {
+        if (!word || typeof word !== 'string') return false;
+        
         const len = word.length;
         return len >= 3 && 
-               len <= 18 &&
+               len <= 20 && 
                !this.stopWordsSet.has(word) &&
-               !this.optimizer.regexPool.digits.test(word) &&
-               this.optimizer.regexPool.alphaOnly.test(word);
+               !this.regexPool.digits.test(word) &&
+               this.regexPool.alphaOnly.test(word);
     }
     
-    processWordsBatchOptimized(words, wordCounts) {
-        for (let i = 0; i < words.length; i++) {
-            const originalWord = words[i];
-            const baseWord = this.stemmer.getStem(originalWord);
-            
-            let wordData = wordCounts.get(baseWord);
-            if (!wordData) {
-                wordData = { totalCount: 0, variants: new Map() };
-                wordCounts.set(baseWord, wordData);
-            }
-            
-            wordData.totalCount++;
-            const currentCount = wordData.variants.get(originalWord) || 0;
-            wordData.variants.set(originalWord, currentCount + 1);
-        }
-    }
-    
+    // 🎯 更新全局统计
     updateGlobalStats(articleId, title, content, wordCounts) {
         wordCounts.forEach((data, baseWord) => {
             let stats = this.wordStats.get(baseWord);
             if (!stats) {
-                stats = { 
-                    totalCount: 0, 
+                stats = {
+                    totalCount: 0,
                     variants: new Map(),
                     articles: new Map()
                 };
@@ -1080,92 +259,255 @@ class WordFrequencyAnalyzer {
             
             stats.totalCount += data.totalCount;
             
+            // 更新变形词统计
             data.variants.forEach((count, variant) => {
                 const currentCount = stats.variants.get(variant) || 0;
                 stats.variants.set(variant, currentCount + count);
                 
-                const contexts = this.extractContextsOptimized(content, variant);
-                this.updateVariantIndex(variant, articleId, count, contexts);
+                // 🎯 为精确搜索建立索引
+                this.updateVariantIndex(variant, articleId, count);
             });
             
+            // 更新文章信息
+            const contexts = this.extractContexts(content, baseWord);
             stats.articles.set(articleId, {
                 count: data.totalCount,
                 title,
-                contexts: this.extractContextsOptimized(content, baseWord),
+                contexts,
                 variants: Array.from(data.variants.entries())
             });
         });
     }
     
-    extractContextsOptimized(content, baseWord) {
-        const contexts = this.optimizer.getArray();
+    // 🎯 更新变形词索引 - 用于精确搜索
+    updateVariantIndex(variant, articleId, count) {
+        if (!this.variantIndex.has(variant)) {
+            this.variantIndex.set(variant, new Set());
+        }
+        this.variantIndex.get(variant).add(articleId);
+        
+        if (!this.articleVariants.has(articleId)) {
+            this.articleVariants.set(articleId, new Map());
+        }
+        this.articleVariants.get(articleId).set(variant, count);
+    }
+    
+    // 🎯 提取上下文 - 简化逻辑
+    extractContexts(content, baseWord) {
+        const contexts = [];
         
         try {
-            const sentences = content.split(this.optimizer.regexPool.sentences);
+            const sentences = content.split(this.regexPool.sentences);
             const stats = this.wordStats.get(baseWord);
-            const allVariants = stats ? Array.from(stats.variants.keys()).slice(0, 5) : [baseWord];
-            
-            const patterns = allVariants.map(variant => 
-                new RegExp(`\\b${this.optimizer.escapeRegex(variant)}\\b`, 'gi')
-            );
+            const variants = stats ? Array.from(stats.variants.keys()).slice(0, 3) : [baseWord];
             
             let foundCount = 0;
             const maxContexts = 2;
             
-            for (let i = 0; i < sentences.length && foundCount < maxContexts; i++) {
-                const sentence = sentences[i];
-                const trimmed = sentence.trim();
+            for (const sentence of sentences) {
+                if (foundCount >= maxContexts) break;
                 
-                if (trimmed && patterns.some(pattern => pattern.test(trimmed))) {
+                const trimmed = sentence.trim();
+                if (!trimmed) continue;
+                
+                const hasMatch = variants.some(variant => 
+                    new RegExp(`\\b${this.escapeRegex(variant)}\\b`, 'i').test(trimmed)
+                );
+                
+                if (hasMatch) {
                     let context = trimmed.substring(0, 100);
                     if (trimmed.length > 100) context += '...';
                     
-                    patterns.forEach(pattern => {
-                        context = context.replace(pattern, `<mark>$&</mark>`);
+                    // 高亮匹配的词
+                    variants.forEach(variant => {
+                        const regex = new RegExp(`\\b${this.escapeRegex(variant)}\\b`, 'gi');
+                        context = context.replace(regex, `<mark>$&</mark>`);
                     });
                     
                     contexts.push(context);
                     foundCount++;
                 }
             }
-            
-            return contexts.slice();
-            
-        } finally {
-            this.optimizer.releaseArray(contexts);
+        } catch (error) {
+            console.warn('提取上下文失败:', error);
         }
-    }
-
-    getWordFrequencyData() {
-        const data = this.optimizer.getArray();
         
-        try {
-            this.wordStats.forEach((stats, baseWord) => {
-                data.push({
+        return contexts;
+    }
+    
+    // 🎯 转义正则表达式
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
+    // 🎯 智能搜索 - 基于词干合并
+    searchWords(query) {
+        console.log(`🧠 执行智能搜索: "${query}"`);
+        
+        if (!query || typeof query !== 'string') {
+            return [];
+        }
+        
+        const lowerQuery = query.toLowerCase().trim();
+        if (!lowerQuery) {
+            return [];
+        }
+        
+        const results = [];
+        
+        this.wordStats.forEach((stats, baseWord) => {
+            let relevance = 0;
+            let matchedVariants = [];
+            
+            // 词根匹配
+            if (baseWord === lowerQuery) {
+                relevance = 10;
+            } else if (baseWord.startsWith(lowerQuery)) {
+                relevance = 8;
+            } else if (baseWord.includes(lowerQuery)) {
+                relevance = 6;
+            }
+            
+            // 变形词匹配
+            let variantRelevance = 0;
+            for (const [variant] of stats.variants) {
+                if (variant === lowerQuery) {
+                    variantRelevance = Math.max(variantRelevance, 9);
+                    matchedVariants.push(variant);
+                } else if (variant.startsWith(lowerQuery)) {
+                    variantRelevance = Math.max(variantRelevance, 7);
+                    matchedVariants.push(variant);
+                } else if (variant.includes(lowerQuery)) {
+                    variantRelevance = Math.max(variantRelevance, 5);
+                    matchedVariants.push(variant);
+                }
+            }
+            
+            const finalRelevance = Math.max(relevance, variantRelevance);
+            
+            if (finalRelevance > 0) {
+                results.push({
                     word: baseWord,
                     totalCount: stats.totalCount,
                     articleCount: stats.articles.size,
-                    variants: Array.from(stats.variants.entries()).sort((a, b) => b[1] - a[1]),
-                    mostCommonVariant: this.getMostCommonVariantOptimized(stats.variants),
-                    articles: Array.from(stats.articles.entries()).map(([id, articleData]) => ({
-                        id,
-                        title: articleData.title,
-                        count: articleData.count,
-                        contexts: articleData.contexts,
-                        variants: articleData.variants
-                    }))
+                    variants: Array.from(stats.variants.entries()),
+                    mostCommonVariant: this.getMostCommonVariant(stats.variants),
+                    relevance: finalRelevance,
+                    matchedVariants: matchedVariants,
+                    isIntelligentMatch: true,
+                    isExactMatch: false
                 });
-            });
-            
-            data.sort((a, b) => b.totalCount - a.totalCount);
-            return data.slice();
-            
-        } finally {
-            this.optimizer.releaseArray(data);
-        }
+            }
+        });
+        
+        // 按相关性和频次排序
+        results.sort((a, b) => {
+            const relevanceDiff = b.relevance - a.relevance;
+            return relevanceDiff !== 0 ? relevanceDiff : b.totalCount - a.totalCount;
+        });
+        
+        console.log(`🧠 智能搜索完成: 找到 ${results.length} 个结果`);
+        return results;
     }
     
-    getMostCommonVariantOptimized(variants) {
+    // 🎯 精确搜索 - 基于原文匹配
+    searchWordsExact(query) {
+        console.log(`🎯 执行精确搜索: "${query}"`);
+        
+        if (!query || typeof query !== 'string') {
+            return [];
+        }
+        
+        const lowerQuery = query.toLowerCase().trim();
+        if (!lowerQuery) {
+            return [];
+        }
+        
+        const results = [];
+        
+        // 在变形词索引中查找
+        if (!this.variantIndex.has(lowerQuery)) {
+            console.log(`🎯 精确搜索完成: 未找到 "${lowerQuery}"`);
+            return [];
+        }
+        
+        const matchingArticles = this.variantIndex.get(lowerQuery);
+        const articleDetails = [];
+        
+        matchingArticles.forEach(articleId => {
+            try {
+                const articleContent = this.articleContents.get(articleId);
+                const variantCount = this.articleVariants.get(articleId)?.get(lowerQuery) || 0;
+                
+                if (articleContent && variantCount > 0) {
+                    articleDetails.push({
+                        id: articleId,
+                        title: articleContent.title,
+                        count: variantCount,
+                        contexts: this.extractContextsForExactMatch(articleContent.content, lowerQuery)
+                    });
+                }
+            } catch (error) {
+                console.warn(`处理文章 ${articleId} 时出错:`, error);
+            }
+        });
+        
+        if (articleDetails.length > 0) {
+            results.push({
+                word: lowerQuery,
+                totalCount: articleDetails.reduce((sum, art) => sum + art.count, 0),
+                articleCount: articleDetails.length,
+                variants: [[lowerQuery, articleDetails.reduce((sum, art) => sum + art.count, 0)]],
+                mostCommonVariant: lowerQuery,
+                relevance: 10,
+                articles: articleDetails.sort((a, b) => b.count - a.count),
+                isIntelligentMatch: false,
+                isExactMatch: true
+            });
+        }
+        
+        console.log(`🎯 精确搜索完成: 找到 ${results.length} 个结果`);
+        return results;
+    }
+    
+    // 🎯 为精确匹配提取上下文
+    extractContextsForExactMatch(content, word) {
+        const contexts = [];
+        
+        try {
+            const sentences = content.split(this.regexPool.sentences);
+            const regex = new RegExp(`\\b${this.escapeRegex(word)}\\b`, 'gi');
+            
+            let foundCount = 0;
+            const maxContexts = 2;
+            
+            for (const sentence of sentences) {
+                if (foundCount >= maxContexts) break;
+                
+                const trimmed = sentence.trim();
+                if (!trimmed || !regex.test(trimmed)) continue;
+                
+                let context = trimmed.substring(0, 100);
+                if (trimmed.length > 100) context += '...';
+                
+                // 高亮匹配的词
+                context = context.replace(regex, `<mark>$&</mark>`);
+                
+                contexts.push(context);
+                foundCount++;
+                
+                // 重置正则表达式的lastIndex
+                regex.lastIndex = 0;
+            }
+        } catch (error) {
+            console.warn('提取精确匹配上下文失败:', error);
+        }
+        
+        return contexts;
+    }
+    
+    // 🎯 获取最常见变形词
+    getMostCommonVariant(variants) {
         let maxCount = 0;
         let mostCommon = '';
         
@@ -1178,156 +520,54 @@ class WordFrequencyAnalyzer {
         
         return mostCommon;
     }
-
-    // 修复：智能搜索 - 支持部分匹配和完整匹配
-    searchWords(query) {
-        const lowerQuery = query.toLowerCase().trim();
-        const results = this.optimizer.getArray();
+    
+    // 🎯 获取词频数据
+    getWordFrequencyData() {
+        const data = [];
         
-        try {
-            this.wordStats.forEach((stats, baseWord) => {
-                // 检查基础词匹配
-                let relevance = 0;
-                
-                // 完全匹配最高优先级
-                if (baseWord === lowerQuery) {
-                    relevance = 10;
-                } else if (baseWord.startsWith(lowerQuery)) {
-                    relevance = 8;
-                } else if (baseWord.includes(lowerQuery)) {
-                    relevance = 6;
-                }
-                
-                // 检查变形词匹配
-                let variantRelevance = 0;
-                let matchedVariants = [];
-                
-                for (const [variant] of stats.variants) {
-                    if (variant === lowerQuery) {
-                        variantRelevance = Math.max(variantRelevance, 9);
-                        matchedVariants.push(variant);
-                    } else if (variant.startsWith(lowerQuery)) {
-                        variantRelevance = Math.max(variantRelevance, 7);
-                        matchedVariants.push(variant);
-                    } else if (variant.includes(lowerQuery)) {
-                        variantRelevance = Math.max(variantRelevance, 5);
-                        matchedVariants.push(variant);
-                    }
-                }
-                
-                // 使用最高相关性
-                const finalRelevance = Math.max(relevance, variantRelevance);
-                
-                if (finalRelevance > 0) {
-                    results.push({
-                        word: baseWord,
-                        totalCount: stats.totalCount,
-                        articleCount: stats.articles.size,
-                        variants: Array.from(stats.variants.entries()),
-                        mostCommonVariant: this.getMostCommonVariantOptimized(stats.variants),
-                        relevance: finalRelevance,
-                        matchedVariants: matchedVariants,
-                        isIntelligentMatch: true
-                    });
-                }
+        this.wordStats.forEach((stats, baseWord) => {
+            data.push({
+                word: baseWord,
+                totalCount: stats.totalCount,
+                articleCount: stats.articles.size,
+                variants: Array.from(stats.variants.entries()).sort((a, b) => b[1] - a[1]),
+                mostCommonVariant: this.getMostCommonVariant(stats.variants),
+                articles: Array.from(stats.articles.entries()).map(([id, articleData]) => ({
+                    id,
+                    title: articleData.title,
+                    count: articleData.count,
+                    contexts: articleData.contexts,
+                    variants: articleData.variants
+                }))
             });
-            
-            // 按相关性和频次排序
-            results.sort((a, b) => {
-                const relevanceDiff = b.relevance - a.relevance;
-                return relevanceDiff !== 0 ? relevanceDiff : b.totalCount - a.totalCount;
-            });
-            
-            return results.slice();
-            
-        } finally {
-            this.optimizer.releaseArray(results);
-        }
+        });
+        
+        data.sort((a, b) => b.totalCount - a.totalCount);
+        return data;
     }
     
-    // 修复：精确搜索
-    searchWordsExact(query) {
-        const lowerQuery = query.toLowerCase().trim();
-        const results = this.optimizer.getArray();
+    // 🎯 按频次筛选
+    filterByFrequency(minCount = 1, maxCount = Infinity) {
+        const results = [];
         
-        if (!lowerQuery) {
-            return results.slice();
-        }
-        
-        try {
-            if (!this.variantIndex.has(lowerQuery)) {
-                return results.slice();
-            }
-            
-            const matchingArticles = this.variantIndex.get(lowerQuery);
-            const articleDetails = [];
-            
-            matchingArticles.forEach(articleId => {
-                try {
-                    const articleContent = this.articleContents.get(articleId);
-                    const variantData = this.articleVariants.get(articleId)?.get(lowerQuery);
-                    
-                    if (articleContent && variantData) {
-                        articleDetails.push({
-                            id: articleId,
-                            title: articleContent.title,
-                            count: variantData.count || 0,
-                            contexts: variantData.contexts || []
-                        });
-                    }
-                } catch (error) {
-                    console.warn('Error processing article in exact search:', articleId, error);
-                }
-            });
-            
-            if (articleDetails.length > 0) {
+        this.wordStats.forEach((stats, baseWord) => {
+            const count = stats.totalCount;
+            if (count >= minCount && count <= maxCount) {
                 results.push({
-                    word: lowerQuery,
-                    totalCount: articleDetails.reduce((sum, art) => sum + art.count, 0),
-                    articleCount: articleDetails.length,
-                    variants: [[lowerQuery, articleDetails.reduce((sum, art) => sum + art.count, 0)]],
-                    mostCommonVariant: lowerQuery,
-                    relevance: 10,
-                    articles: articleDetails.sort((a, b) => b.count - a.count),
-                    isExactMatch: true
+                    word: baseWord,
+                    totalCount: count,
+                    articleCount: stats.articles.size,
+                    variants: Array.from(stats.variants.entries()),
+                    mostCommonVariant: this.getMostCommonVariant(stats.variants)
                 });
             }
-            
-            return results.slice();
-            
-        } catch (error) {
-            console.warn('Error in exact search:', error);
-            return results.slice();
-        } finally {
-            this.optimizer.releaseArray(results);
-        }
-    }
-
-    filterByFrequency(minCount = 1, maxCount = Infinity) {
-        const results = this.optimizer.getArray();
+        });
         
-        try {
-            this.wordStats.forEach((stats, baseWord) => {
-                const count = stats.totalCount;
-                if (count >= minCount && count <= maxCount) {
-                    results.push({
-                        word: baseWord,
-                        totalCount: count,
-                        articleCount: stats.articles.size,
-                        variants: Array.from(stats.variants.entries()),
-                        mostCommonVariant: this.getMostCommonVariantOptimized(stats.variants)
-                    });
-                }
-            });
-            
-            results.sort((a, b) => b.totalCount - a.totalCount);
-            return results.slice();
-            
-        } finally {
-            this.optimizer.releaseArray(results);
-        }
+        results.sort((a, b) => b.totalCount - a.totalCount);
+        return results;
     }
-
+    
+    // 🎯 获取统计摘要
     getStatsSummary() {
         const totalUniqueWords = this.wordStats.size;
         let totalVariants = 0;
@@ -1340,930 +580,548 @@ class WordFrequencyAnalyzer {
         
         const totalArticles = this.articleContents.size;
         
-        const freqDistribution = { high: 0, medium: 0, low: 0 };
-        this.wordStats.forEach(stats => {
-            const count = stats.totalCount;
-            if (count >= 10) freqDistribution.high++;
-            else if (count >= 5) freqDistribution.medium++;
-            else freqDistribution.low++;
-        });
-
         return {
             totalUniqueWords,
             totalVariants,
-            compressionRatio: totalVariants > 0 ? (totalVariants / totalUniqueWords).toFixed(2) : 0,
             totalWordOccurrences: totalOccurrences,
             totalArticlesAnalyzed: totalArticles,
             averageWordsPerArticle: totalArticles > 0 ? Math.round(totalOccurrences / totalArticles) : 0,
-            frequencyDistribution: freqDistribution,
-            performance: this.optimizer.getStats(),
             exactIndexStats: {
                 totalVariants: this.variantIndex.size,
                 articlesWithVariants: this.articleVariants.size
             }
         };
     }
-    
-    addCustomMergeRule(variant, baseForm) {
-        this.stemmer.addCustomRule(variant, baseForm);
-        this.markForReanalysis();
-    }
-    
-    addCustomMergeRules(rules) {
-        this.stemmer.addCustomRules(rules);
-        this.markForReanalysis();
-    }
-    
-    markForReanalysis() {
-        if (this.cache) {
-            this.cache.delete('fullAnalysis');
-        }
-        this.stemmer.clearCache();
-    }
-    
-    getPerformanceStats() {
-        return {
-            optimizer: this.optimizer.getStats(),
-            stemmerCache: this.stemmer.getCacheStats(),
-            memoryUsage: {
-                wordStats: this.wordStats.size,
-                articleContents: this.articleContents.size,
-                variantIndex: this.variantIndex.size,
-                articleVariants: this.articleVariants.size
-            }
-        };
-    }
 }
 
-// 词频管理器 - 修复双模式搜索
-class WordFrequencyManager {
+// 🎯 简化的词频管理器 - 专注可用性
+class SimplifiedWordFrequencyManager {
     constructor() {
-        this.analyzer = new WordFrequencyAnalyzer();
-        this.workerManager = new WebWorkerManager();
-        this.intelligentClassifier = new IntelligentWordFrequencyClassifier();
-        this.isProcessing = false;
+        this.analyzer = new SimplifiedWordFrequencyAnalyzer();
+        this.isInitialized = false;
+        this.isInitializing = false;
+        this.initializationError = null;
         this.processedArticles = new Set();
         this.processingProgress = 0;
         
-        this.classificationMethod = 'auto';
-        this.classificationCache = new Map();
+        // 简单缓存
+        this.cache = window.EnglishSite.CacheManager?.get('wordFreq') ||
+            window.EnglishSite.CacheManager?.create('wordFreq', 100, 3600000);
         
-        // 修复：搜索配置
-        this.searchConfig = {
-            defaultMode: 'intelligent',
-            enableSuggestions: true,
-            suggestionTimeout: 10000,
-            cacheSearchResults: true
-        };
+        console.log('✅ 简化词频管理器已创建');
         
-        this.searchCache = {
-            intelligent: new Map(),
-            exact: new Map(),
-            maxCacheSize: 50
-        };
-        
-        this.processingMode = {
-            useWorker: false,
-            autoDetect: true,
-            fallbackOnError: true,
-            workerThreshold: 80
-        };
-        
-        this.performanceConfig = {
-            batchSize: 2,
-            maxConcurrentBatches: 1,
-            yieldInterval: 150,
-            useStreamProcessing: true
-        };
-        
-        this.initPromise = this.initializeFromNavigation();
+        // 🎯 启动异步初始化 - 避免构造函数死锁
+        setTimeout(() => {
+            this.startInitialization();
+        }, 0);
     }
-
-    async initializeFromNavigation() {
+    
+    // 🎯 启动初始化
+    async startInitialization() {
+        if (this.isInitializing || this.isInitialized) {
+            return;
+        }
+        
+        this.isInitializing = true;
+        
         try {
-            await window.EnglishSite.coreToolsReady;
+            console.log('🚀 开始词频分析器初始化...');
             
-            const cachedData = this.analyzer.cache?.get('fullAnalysis');
+            // 🎯 检查缓存
+            const cachedData = this.cache?.get('fullAnalysis');
             if (cachedData && this.isCacheValid(cachedData)) {
+                console.log('📦 从缓存加载词频数据');
                 this.loadFromCache(cachedData);
-                return true;
+                this.isInitialized = true;
+                this.isInitializing = false;
+                console.log('✅ 词频分析器初始化完成 (从缓存)');
+                return;
             }
             
-            await this.analyzeAllArticlesOptimized();
-            return true;
+            // 🎯 全新分析
+            await this.analyzeAllArticles();
+            this.cacheResults();
+            
+            this.isInitialized = true;
+            this.isInitializing = false;
+            
+            console.log('✅ 词频分析器初始化完成 (全新分析)');
             
         } catch (error) {
-            console.error('词频管理器初始化失败:', error);
-            if (window.EnglishSite?.ErrorHandler) {
-                window.EnglishSite.ErrorHandler.record('wordFreq', 'initialization', error);
-            }
-            throw error;
+            console.error('❌ 词频分析器初始化失败:', error);
+            this.initializationError = error;
+            this.isInitializing = false;
         }
-    }
-
-    getIntelligentClassification(method = this.classificationMethod) {
-        const cacheKey = `${method}_${this.analyzer.wordStats.size}`;
-        
-        if (this.classificationCache.has(cacheKey)) {
-            return this.classificationCache.get(cacheKey);
-        }
-        
-        const wordData = this.analyzer.getWordFrequencyData();
-        const globalStats = {
-            totalArticles: this.analyzer.articleContents.size,
-            totalWords: this.analyzer.wordStats.size,
-            totalOccurrences: Array.from(this.analyzer.wordStats.values())
-                .reduce((sum, stats) => sum + stats.totalCount, 0)
-        };
-        
-        const result = this.intelligentClassifier.classifyWords(wordData, globalStats, method);
-        
-        this.classificationCache.set(cacheKey, result);
-        
-        return result;
-    }
-
-    filterWords(options = {}) {
-        const { 
-            minFreq = 1, 
-            maxFreq = Infinity, 
-            searchQuery = '',
-            intelligentCategory = 'all',
-            sortBy = 'frequency'
-        } = options;
-        
-        let results;
-        
-        if (intelligentCategory !== 'all') {
-            try {
-                const classification = this.getIntelligentClassification();
-                results = classification.classification[intelligentCategory] || [];
-            } catch (error) {
-                console.warn('智能分类失败，回退到传统筛选:', error);
-                results = this.analyzer.filterByFrequency(minFreq, maxFreq);
-            }
-        } else {
-            results = this.analyzer.filterByFrequency(minFreq, maxFreq);
-        }
-        
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            results = results.filter(item => 
-                item.word.includes(query) || 
-                item.variants?.some(([variant]) => variant.includes(query))
-            );
-        }
-        
-        switch (sortBy) {
-            case 'frequency':
-                results.sort((a, b) => b.totalCount - a.totalCount);
-                break;
-            case 'alphabetical':
-                results.sort((a, b) => a.word.localeCompare(b.word));
-                break;
-            case 'articles':
-                results.sort((a, b) => b.articleCount - a.articleCount);
-                break;
-            case 'hybrid':
-                if (results[0]?.hybridScore !== undefined) {
-                    results.sort((a, b) => b.hybridScore - a.hybridScore);
-                } else {
-                    results.sort((a, b) => b.totalCount - a.totalCount);
-                }
-                break;
-            default:
-                results.sort((a, b) => b.totalCount - a.totalCount);
-        }
-        
-        return results;
-    }
-
-    setClassificationMethod(method) {
-        if (this.intelligentClassifier.classificationMethods[method] || method === 'auto') {
-            this.classificationMethod = method;
-            this.classificationCache.clear();
-            return true;
-        }
-        return false;
-    }
-
-    getAvailableClassificationMethods() {
-        return {
-            'auto': '🤖 自动选择最佳方法',
-            'percentile': '📊 百分位数分类（适合任何规模）',
-            'adaptive': '📈 自适应分类（根据文章数量调整）',
-            'statistical': '📉 统计分布分类（基于标准差）',
-            'tfidf': '🎯 TF-IDF重要性分类（突出重要词汇）',
-            'hybrid': '🧠 混合智能分类（推荐使用）'
-        };
-    }
-
-    getClassificationDetails() {
-        try {
-            const classification = this.getIntelligentClassification();
-            const labels = this.intelligentClassifier.getClassificationLabels(
-                classification.method,
-                this.analyzer.articleContents.size
-            );
-            
-            return {
-                method: classification.method,
-                description: classification.description,
-                categories: Object.keys(classification.classification).map(category => ({
-                    key: category,
-                    count: classification.classification[category].length,
-                    label: labels[category]?.name || category,
-                    emoji: labels[category]?.emoji || '📊',
-                    color: labels[category]?.color || '#666',
-                    description: labels[category]?.description || ''
-                })),
-                thresholds: classification.thresholds,
-                metadata: classification.metadata
-            };
-        } catch (error) {
-            console.warn('获取分类详情失败:', error);
-            return {
-                method: 'error',
-                description: '分类信息获取失败',
-                categories: [],
-                thresholds: {},
-                metadata: {}
-            };
-        }
-    }
-
-    getStatsSummary() {
-        const basicStats = this.analyzer.getStatsSummary();
-        
-        try {
-            const classification = this.getIntelligentClassification();
-            
-            return {
-                ...basicStats,
-                intelligentClassification: {
-                    method: classification.method,
-                    description: classification.description,
-                    distribution: {
-                        ultraHigh: classification.classification['ultra-high'].length,
-                        high: classification.classification['high'].length,
-                        medium: classification.classification['medium'].length,
-                        low: classification.classification['low'].length,
-                        rare: classification.classification['rare'].length
-                    },
-                    thresholds: classification.thresholds,
-                    labels: this.intelligentClassifier.getClassificationLabels(
-                        classification.method, 
-                        basicStats.totalArticlesAnalyzed
-                    )
-                }
-            };
-        } catch (error) {
-            console.warn('智能分类生成失败，使用基础统计:', error);
-            return basicStats;
-        }
-    }
-
-    // 修复：双模式搜索接口
-    searchWordsDual(query, mode = 'intelligent') {
-        const normalizedQuery = query.toLowerCase().trim();
-        
-        if (!normalizedQuery) {
-            return {
-                currentMode: mode,
-                currentResults: [],
-                alternativeMode: mode === 'intelligent' ? 'exact' : 'intelligent',
-                alternativeResults: [],
-                suggestions: null,
-                currentQuery: query || ''
-            };
-        }
-        
-        const currentCacheKey = `${normalizedQuery}_${mode}`;
-        const altMode = mode === 'intelligent' ? 'exact' : 'intelligent';
-        const altCacheKey = `${normalizedQuery}_${altMode}`;
-        
-        let currentResults = this.searchCache[mode].get(currentCacheKey);
-        let alternativeResults = this.searchCache[altMode].get(altCacheKey);
-        
-        // 执行当前模式搜索
-        if (!currentResults) {
-            try {
-                currentResults = mode === 'intelligent' 
-                    ? this.analyzer.searchWords(normalizedQuery)
-                    : this.analyzer.searchWordsExact(normalizedQuery);
-                
-                if (!Array.isArray(currentResults)) {
-                    currentResults = [];
-                }
-                
-                if (this.searchConfig.cacheSearchResults) {
-                    this.cacheSearchResult(mode, currentCacheKey, currentResults);
-                }
-            } catch (error) {
-                console.warn('Current search failed:', error);
-                currentResults = [];
-            }
-        }
-        
-        // 执行替代模式搜索（用于智能提示）
-        if (!alternativeResults && this.searchConfig.enableSuggestions) {
-            try {
-                alternativeResults = altMode === 'intelligent'
-                    ? this.analyzer.searchWords(normalizedQuery)
-                    : this.analyzer.searchWordsExact(normalizedQuery);
-                
-                if (!Array.isArray(alternativeResults)) {
-                    alternativeResults = [];
-                }
-                
-                if (this.searchConfig.cacheSearchResults) {
-                    this.cacheSearchResult(altMode, altCacheKey, alternativeResults);
-                }
-            } catch (error) {
-                console.warn('Alternative search failed:', error);
-                alternativeResults = [];
-            }
-        }
-        
-        // 生成智能建议
-        const suggestions = this.generateSearchSuggestions(
-            normalizedQuery, 
-            mode, 
-            currentResults, 
-            alternativeResults || []
-        );
-        
-        return {
-            currentMode: mode,
-            currentResults: currentResults || [],
-            alternativeMode: altMode,
-            alternativeResults: alternativeResults || [],
-            suggestions: suggestions,
-            currentQuery: normalizedQuery
-        };
     }
     
-    cacheSearchResult(mode, cacheKey, results) {
-        const cache = this.searchCache[mode];
-        
-        if (cache.size >= this.searchCache.maxCacheSize) {
-            const firstKey = cache.keys().next().value;
-            cache.delete(firstKey);
-        }
-        
-        cache.set(cacheKey, results);
-    }
-    
-    generateSearchSuggestions(query, currentMode, currentResults, alternativeResults) {
-        if (!this.searchConfig.enableSuggestions) {
-            return null;
-        }
-        
-        const currentCount = currentResults ? currentResults.length : 0;
-        const altCount = alternativeResults ? alternativeResults.length : 0;
-        
-        let suggestion = null;
-        
-        if (currentMode === 'intelligent') {
-            if (currentCount > 0 && altCount > 0 && altCount !== currentCount) {
-                if (altCount < currentCount) {
-                    suggestion = {
-                        type: 'exact-fewer',
-                        message: `精确搜索 "${query}" 有 ${altCount} 个结果`,
-                        action: 'switch-to-exact',
-                        count: altCount
-                    };
-                } else {
-                    suggestion = {
-                        type: 'exact-more',
-                        message: `精确搜索 "${query}" 有 ${altCount} 个结果`,
-                        action: 'switch-to-exact', 
-                        count: altCount
-                    };
-                }
-            } else if (currentCount === 0 && altCount > 0) {
-                suggestion = {
-                    type: 'try-exact',
-                    message: `试试精确搜索 "${query}"，找到 ${altCount} 个结果`,
-                    action: 'switch-to-exact',
-                    count: altCount
-                };
-            }
-        } else { // exact mode
-            if (currentCount > 0 && altCount > currentCount) {
-                suggestion = {
-                    type: 'intelligent-more',
-                    message: `智能匹配还有 ${altCount - currentCount} 个相关结果`,
-                    action: 'switch-to-intelligent',
-                    count: altCount
-                };
-            } else if (currentCount === 0 && altCount > 0) {
-                suggestion = {
-                    type: 'try-intelligent',
-                    message: `精确搜索无结果，智能匹配找到 ${altCount} 个相关结果`,
-                    action: 'switch-to-intelligent',
-                    count: altCount
-                };
-            }
-        }
-        
-        return suggestion;
-    }
-    
-    clearSearchCache(mode = null) {
-        if (mode) {
-            this.searchCache[mode].clear();
-        } else {
-            this.searchCache.intelligent.clear();
-            this.searchCache.exact.clear();
-        }
-    }
-
-    async enableWebWorker() {
-        if (!this.workerManager.isWorkerSupported) {
-            console.warn('当前浏览器不支持Web Worker');
-            return false;
-        }
-        
-        try {
-            const success = await this.workerManager.initWorker();
-            if (success) {
-                this.processingMode.useWorker = true;
-                console.log('✅ Web Worker模式已启用');
-                
-                const customRules = Array.from(this.analyzer.stemmer.customMergeRules.entries());
-                if (customRules.length > 0) {
-                    await this.workerManager.updateCustomRules(customRules);
-                }
-                
-                return true;
-            }
-        } catch (error) {
-            console.error('启用Web Worker失败:', error);
-        }
-        
-        return false;
-    }
-    
-    disableWebWorker() {
-        this.processingMode.useWorker = false;
-        this.workerManager.cleanup();
-        console.log('🔄 已切换到主线程模式');
-    }
-    
-    async autoSelectProcessingMode(articleCount) {
-        if (!this.processingMode.autoDetect) {
-            return this.processingMode.useWorker;
-        }
-        
-        if (articleCount >= this.processingMode.workerThreshold) {
-            if (!this.processingMode.useWorker) {
-                console.log(`📊 检测到${articleCount}篇文章，启用Web Worker模式以提升性能`);
-                return await this.enableWebWorker();
-            }
-        }
-        
-        return this.processingMode.useWorker;
-    }
-
+    // 🎯 等待就绪 - 简化逻辑
     async waitForReady() {
-        return this.initPromise;
-    }
-
-    getTopWords(limit = 100) {
-        return this.analyzer.getWordFrequencyData().slice(0, limit);
-    }
-
-    searchWords(query) {
-        return this.analyzer.searchWords(query);
-    }
-
-    getWordDetails(word) {
-        let stats = this.analyzer.wordStats.get(word);
+        const maxWaitTime = 60000; // 60秒超时
+        const checkInterval = 100;
+        let waitedTime = 0;
         
-        if (!stats) {
-            const baseForm = this.analyzer.stemmer.getStem(word);
-            stats = this.analyzer.wordStats.get(baseForm);
-        }
-        
-        if (!stats) {
-            for (const [baseWord, wordStats] of this.analyzer.wordStats.entries()) {
-                if (wordStats.variants.has(word)) {
-                    stats = wordStats;
-                    word = baseWord;
-                    break;
+        return new Promise((resolve, reject) => {
+            const checkStatus = () => {
+                if (this.isInitialized) {
+                    resolve(true);
+                } else if (this.initializationError) {
+                    reject(this.initializationError);
+                } else if (waitedTime >= maxWaitTime) {
+                    reject(new Error('初始化超时'));
+                } else {
+                    waitedTime += checkInterval;
+                    setTimeout(checkStatus, checkInterval);
                 }
-            }
-        }
-        
-        if (!stats) return null;
-        
-        return {
-            word,
-            totalCount: stats.totalCount,
-            articleCount: stats.articles.size,
-            variants: Array.from(stats.variants.entries()).sort((a, b) => b[1] - a[1]),
-            mostCommonVariant: this.analyzer.getMostCommonVariantOptimized(stats.variants),
-            articles: Array.from(stats.articles.entries()).map(([id, data]) => ({
-                id,
-                title: data.title,
-                count: data.count,
-                contexts: data.contexts,
-                variants: data.variants
-            })).sort((a, b) => b.count - a.count)
-        };
+            };
+            checkStatus();
+        });
     }
     
-    addMergeRule(variant, baseForm) {
-        this.analyzer.addCustomMergeRule(variant, baseForm);
-        
-        if (this.processingMode.useWorker && this.workerManager.isAvailable()) {
-            this.workerManager.updateCustomRules([[variant, baseForm]]).catch(console.warn);
-        }
-    }
-    
-    addMergeRules(rules) {
-        this.analyzer.addCustomMergeRules(rules);
-        
-        if (this.processingMode.useWorker && this.workerManager.isAvailable()) {
-            this.workerManager.updateCustomRules(rules).catch(console.warn);
-        }
-    }
-    
-    async forceReanalyze() {
-        this.analyzer.markForReanalysis();
-        this.processedArticles.clear();
-        this.classificationCache.clear();
-        this.clearSearchCache();
-        await this.analyzeAllArticlesOptimized();
-    }
-    
-    async getWorkerStats() {
-        if (this.workerManager.isAvailable()) {
-            return await this.workerManager.getWorkerStats();
-        }
-        return { error: 'Worker未启用或不可用' };
-    }
-    
-    configureWorker(config) {
-        this.workerManager.configure(config);
-    }
-    
-    configureProcessing(config) {
-        this.processingMode = { ...this.processingMode, ...config };
-    }
-    
-    getPerformanceMetrics() {
-        return {
-            analyzer: this.analyzer.getPerformanceStats(),
-            worker: this.workerManager.isAvailable() ? this.workerManager.workerStats : null,
-            processing: {
-                isProcessing: this.isProcessing,
-                progress: this.processingProgress,
-                processedArticles: this.processedArticles.size,
-                mode: this.processingMode.useWorker ? 'worker' : 'main',
-                workerAvailable: this.workerManager.isAvailable()
-            },
-            config: {
-                processing: this.processingMode,
-                performance: this.performanceConfig
-            },
-            intelligentClassification: {
-                method: this.classificationMethod,
-                cacheSize: this.classificationCache.size,
-                availableMethods: Object.keys(this.intelligentClassifier.classificationMethods)
-            }
-        };
-    }
-    
-    updatePerformanceConfig(config) {
-        this.performanceConfig = { ...this.performanceConfig, ...config };
-    }
-
-    async analyzeAllArticlesOptimized() {
-        if (this.isProcessing) return;
-        this.isProcessing = true;
-        this.processingProgress = 0;
+    // 🎯 分析所有文章 - 简化流程
+    async analyzeAllArticles() {
+        console.log('📊 开始分析所有文章...');
         
         try {
             const allChapters = await this.getAllChapters();
             
-            if (allChapters.length === 0) {
-                throw new Error('未找到任何文章');
+            if (!Array.isArray(allChapters) || allChapters.length === 0) {
+                throw new Error('未找到任何可分析的文章');
             }
             
-            await this.autoSelectProcessingMode(allChapters.length);
+            console.log(`📋 找到 ${allChapters.length} 篇文章，开始分析...`);
             
-            if (this.processingMode.useWorker && this.workerManager.isAvailable()) {
-                await this.analyzeWithWorker(allChapters);
-            } else {
-                if (this.performanceConfig.useStreamProcessing) {
-                    await this.streamProcessArticles(allChapters);
-                } else {
-                    await this.batchProcessArticles(allChapters);
-                }
-            }
+            let processedCount = 0;
             
-            this.cacheResults();
-            
-        } catch (error) {
-            console.error('词频分析失败:', error);
-            
-            if (this.processingMode.useWorker && this.processingMode.fallbackOnError) {
-                console.log('🔄 Worker模式出错，回退到主线程模式');
-                this.disableWebWorker();
-                
-                if (this.performanceConfig.useStreamProcessing) {
-                    await this.streamProcessArticles(await this.getAllChapters());
-                } else {
-                    await this.batchProcessArticles(await this.getAllChapters());
-                }
-                
-                this.cacheResults();
-            } else {
-                throw error;
-            }
-            
-        } finally {
-            this.isProcessing = false;
-            this.processingProgress = 100;
-        }
-    }
-    
-    async analyzeWithWorker(chapters) {
-        console.log('🚀 使用Web Worker模式进行词频分析');
-        
-        const articles = [];
-        
-        for (const chapterId of chapters) {
-            if (this.processedArticles.has(chapterId)) continue;
-            
-            try {
-                const { content, title } = await this.getArticleContent(chapterId);
-                articles.push({ id: chapterId, content, title });
-            } catch (error) {
-                console.warn(`获取文章 ${chapterId} 失败:`, error.message);
-            }
-        }
-        
-        if (articles.length === 0) return;
-        
-        try {
-            const result = await this.workerManager.analyzeBatch(articles, (progress) => {
-                this.processingProgress = progress;
-                this.notifyProgress(this.processingProgress);
-            });
-            
-            if (result && result.results && Array.isArray(result.results)) {
-                result.results.forEach(articleResult => {
-                    if (articleResult.error) {
-                        console.warn(`文章 ${articleResult.articleId} 分析失败:`, articleResult.error);
-                    } else if (articleResult.articleId) {
-                        this.analyzer.processWorkerResult(articleResult);
-                        this.processedArticles.add(articleResult.articleId);
+            for (const chapterId of allChapters) {
+                try {
+                    const articleData = await this.getArticleContent(chapterId);
+                    this.analyzer.analyzeArticle(chapterId, articleData.content, articleData.title);
+                    this.processedArticles.add(chapterId);
+                    
+                    processedCount++;
+                    this.processingProgress = Math.round((processedCount / allChapters.length) * 100);
+                    
+                    // 🎯 发送进度事件
+                    this.dispatchProgressEvent(this.processingProgress);
+                    
+                    // 🎯 适当让出控制权
+                    if (processedCount % 5 === 0) {
+                        await this.sleep(10);
                     }
-                });
-            } else {
-                console.warn('Worker返回了无效结果:', result);
+                    
+                } catch (error) {
+                    console.warn(`❌ 分析文章 ${chapterId} 失败:`, error.message);
+                }
             }
             
-            console.log('✅ Web Worker分析完成，性能统计:', result?.stats);
+            console.log(`✅ 文章分析完成: ${processedCount}/${allChapters.length} 篇成功`);
             
         } catch (error) {
-            console.error('Worker批量分析失败:', error);
+            console.error('❌ 文章分析失败:', error);
             throw error;
         }
     }
     
-    async getArticleContent(chapterId) {
-        let content = null;
-        const navigation = window.app?.navigation;
-        
-        if (navigation?.cache) {
-            content = navigation.cache.get(chapterId);
-        }
-        
-        if (!content) {
-            const response = await fetch(`chapters/${chapterId}.html`);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            content = await response.text();
-        }
-        
-        const textContent = this.extractTextFromHTMLOptimized(content);
-        const title = this.extractTitleOptimized(content) || chapterId;
-        
-        if (!textContent || textContent.length < 50) {
-            throw new Error('文章内容为空或过短');
-        }
-        
-        return { content: textContent, title };
-    }
-    
-    async streamProcessArticles(chapters) {
-        console.log('🔄 使用主线程流式处理模式');
-        const { batchSize, yieldInterval } = this.performanceConfig;
-        
-        for (let i = 0; i < chapters.length; i += batchSize) {
-            const batch = chapters.slice(i, i + batchSize);
-            
-            const promises = batch.map(id => this.processArticleOptimized(id));
-            await Promise.allSettled(promises);
-            
-            this.processingProgress = Math.round(((i + batch.length) / chapters.length) * 100);
-            this.notifyProgress(this.processingProgress);
-            
-            if (i % 6 === 0) {
-                await this.sleep(yieldInterval);
-            }
-        }
-    }
-    
-    async batchProcessArticles(chapters) {
-        console.log('🔄 使用主线程批处理模式');
-        const { batchSize } = this.performanceConfig;
-        
-        for (let i = 0; i < chapters.length; i += batchSize) {
-            const batch = chapters.slice(i, i + batchSize);
-            await this.processBatch(batch);
-            
-            this.processingProgress = Math.round(((i + batch.length) / chapters.length) * 100);
-            this.notifyProgress(this.processingProgress);
-            
-            await this.sleep(150);
-        }
-    }
-
+    // 🎯 获取所有章节 - 简化数据源检测
     async getAllChapters() {
-        if (window.app?.navigation?.chaptersMap) {
-            return Array.from(window.app.navigation.chaptersMap.keys());
+        console.log('📋 获取文章列表...');
+        
+        // 🎯 方法1: 检查navigation实例
+        try {
+            if (window.app?.navigation?.chaptersMap) {
+                const chaptersMap = window.app.navigation.chaptersMap;
+                if (chaptersMap.size > 0) {
+                    const chapters = Array.from(chaptersMap.keys()).filter(id => 
+                        id && typeof id === 'string' && id.trim().length > 0
+                    );
+                    
+                    if (chapters.length > 0) {
+                        console.log(`✅ 从navigation获取到 ${chapters.length} 个章节`);
+                        return chapters;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('方法1失败:', error.message);
         }
         
+        // 🎯 方法2: 从navigation.json获取
         try {
-            const response = await fetch('data/navigation.json');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            
-            const navData = await response.json();
-            return navData.flatMap(series => 
-                (series.chapters || []).map(ch => ch.id)
-            ).filter(Boolean);
-        } catch (error) {
-            console.warn('无法从navigation.json获取章节列表:', error);
-            return [];
-        }
-    }
-
-    async processBatch(chapterIds) {
-        const promises = chapterIds.map(id => this.processArticleOptimized(id));
-        await Promise.allSettled(promises);
-    }
-
-    async processArticleOptimized(chapterId) {
-        if (this.processedArticles.has(chapterId)) return;
-        
-        try {
-            const { content, title } = await this.getArticleContent(chapterId);
-            this.analyzer.analyzeArticle(chapterId, content, title);
-            this.processedArticles.add(chapterId);
-            
-        } catch (error) {
-            console.warn(`处理文章 ${chapterId} 时出错:`, error.message);
-        }
-    }
-
-    extractTextFromHTMLOptimized(html) {
-        try {
-            const temp = document.createElement('div');
-            temp.innerHTML = html;
-            
-            const removeSelectors = ['script', 'style', 'nav', 'header', 'footer', '.nav', '.navigation'];
-            removeSelectors.forEach(selector => {
-                temp.querySelectorAll(selector).forEach(el => el.remove());
+            const response = await fetch('data/navigation.json', {
+                method: 'GET',
+                cache: 'no-store'
             });
             
-            return temp.textContent || temp.innerText || '';
+            if (response.ok) {
+                const navData = await response.json();
+                
+                if (Array.isArray(navData) && navData.length > 0) {
+                    const allChapters = [];
+                    
+                    navData.forEach(series => {
+                        if (series && Array.isArray(series.chapters)) {
+                            series.chapters.forEach(chapter => {
+                                if (chapter && chapter.id && typeof chapter.id === 'string') {
+                                    allChapters.push(chapter.id);
+                                }
+                            });
+                        }
+                    });
+                    
+                    if (allChapters.length > 0) {
+                        const uniqueChapters = [...new Set(allChapters)];
+                        console.log(`✅ 从navigation.json获取到 ${uniqueChapters.length} 个唯一章节`);
+                        return uniqueChapters;
+                    }
+                }
+            }
         } catch (error) {
+            console.warn('方法2失败:', error.message);
+        }
+        
+        // 🎯 方法3: 使用演示数据
+        console.warn('⚠️ 所有数据源检测失败，使用演示数据');
+        const demoChapters = this.generateDemoChapters();
+        await this.createDemoContent(demoChapters);
+        console.log(`✅ 创建了 ${demoChapters.length} 个演示章节`);
+        return demoChapters;
+    }
+    
+    // 🎯 生成演示章节
+    generateDemoChapters() {
+        return [
+            'demo-introduction-to-english',
+            'demo-grammar-fundamentals',
+            'demo-vocabulary-building',
+            'demo-pronunciation-guide',
+            'demo-reading-skills'
+        ];
+    }
+    
+    // 🎯 创建演示内容
+    async createDemoContent(demoChapters) {
+        const demoContent = [
+            {
+                title: "Introduction to English Learning",
+                content: `English language learning represents one of the most significant educational pursuits in the modern world. Students must develop strong foundation in basic grammar concepts, including proper sentence structure, verb conjugation, and syntactic relationships. Vocabulary acquisition involves memorizing common words, understanding etymology, and practicing contextual usage. Research demonstrates that successful language acquisition depends on multiple factors: motivation, exposure frequency, practice intensity, and methodological approach.`
+            },
+            {
+                title: "Grammar Fundamentals",
+                content: `English grammar forms the structural foundation for effective communication and linguistic competence. Understanding grammatical principles enables speakers to construct meaningful sentences, express complex ideas, and communicate with precision and clarity. Essential grammar components include nouns, verbs, adjectives, adverbs, prepositions, conjunctions, and interjections. Sentence construction follows specific patterns: subject-verb-object arrangements, subordinate clauses, and compound structures.`
+            },
+            {
+                title: "Vocabulary Development",
+                content: `Vocabulary expansion represents the cornerstone of linguistic proficiency and communication effectiveness. Strategic vocabulary development involves systematic learning, contextual understanding, and practical application of new words and phrases. Word families and etymology provide powerful tools for understanding relationships between related terms. Active vocabulary building strategies include flashcard systems, spaced repetition algorithms, contextual learning exercises, and practical application activities.`
+            },
+            {
+                title: "Pronunciation and Phonetics",
+                content: `Pronunciation training emphasizes phonetic accuracy, stress patterns, and intonation variations. English phonetics involves understanding individual sounds, syllable structures, and rhythm patterns. Effective pronunciation requires consistent practice, audio feedback, and systematic study of sound combinations. Students should focus on common pronunciation challenges, including vowel sounds, consonant clusters, and word stress patterns.`
+            },
+            {
+                title: "Reading Comprehension Skills",
+                content: `Reading comprehension skills are fundamental for academic success and language proficiency. Effective reading strategies include skimming, scanning, detailed reading, and critical analysis. Students must develop the ability to understand main ideas, identify supporting details, and make inferences from textual information. Advanced reading skills involve analyzing author's purpose, recognizing literary devices, and evaluating arguments and evidence.`
+            }
+        ];
+        
+        for (let i = 0; i < demoChapters.length; i++) {
+            const chapterId = demoChapters[i];
+            const content = demoContent[i % demoContent.length];
+            
+            const htmlContent = `
+                <html>
+                    <head><title>${content.title}</title></head>
+                    <body>
+                        <article>
+                            <h1>${content.title}</h1>
+                            <div class="content">
+                                <p>${content.content}</p>
+                            </div>
+                        </article>
+                    </body>
+                </html>
+            `;
+            
+            // 缓存到session storage
+            sessionStorage.setItem(`demo_content_${chapterId}`, htmlContent);
+        }
+    }
+    
+    // 🎯 获取文章内容
+    async getArticleContent(chapterId) {
+        // 尝试从缓存获取
+        const demoContent = sessionStorage.getItem(`demo_content_${chapterId}`);
+        if (demoContent) {
+            const textContent = this.extractTextFromHTML(demoContent);
+            const title = this.extractTitleFromHTML(demoContent) || chapterId;
+            return { content: textContent, title };
+        }
+        
+        // 尝试从navigation缓存获取
+        if (window.app?.navigation?.cache) {
+            const cachedContent = window.app.navigation.cache.get(chapterId);
+            if (cachedContent) {
+                const textContent = this.extractTextFromHTML(cachedContent);
+                const title = this.extractTitleFromHTML(cachedContent) || chapterId;
+                return { content: textContent, title };
+            }
+        }
+        
+        // 尝试从文件获取
+        try {
+            const response = await fetch(`chapters/${chapterId}.html`);
+            if (response.ok) {
+                const htmlContent = await response.text();
+                const textContent = this.extractTextFromHTML(htmlContent);
+                const title = this.extractTitleFromHTML(htmlContent) || chapterId;
+                return { content: textContent, title };
+            }
+        } catch (error) {
+            console.warn(`无法从文件获取 ${chapterId}:`, error.message);
+        }
+        
+        throw new Error(`无法获取文章内容: ${chapterId}`);
+    }
+    
+    // 🎯 从HTML提取文本
+    extractTextFromHTML(html) {
+        try {
+            if (typeof DOMParser !== 'undefined') {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // 移除脚本和样式
+                const scripts = doc.querySelectorAll('script, style, nav, header, footer');
+                scripts.forEach(el => el.remove());
+                
+                return doc.body ? doc.body.textContent || doc.body.innerText || '' : '';
+            } else {
+                // 降级处理
+                return html
+                    .replace(/<script[^>]*>.*?<\/script>/gis, '')
+                    .replace(/<style[^>]*>.*?<\/style>/gis, '')
+                    .replace(/<[^>]*>/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+            }
+        } catch (error) {
+            console.warn('HTML文本提取失败:', error);
             return '';
         }
     }
-
-    extractTitleOptimized(html) {
-        const patterns = [
-            /<h[1-3][^>]*>(.*?)<\/h[1-3]>/i,
-            /<title[^>]*>(.*?)<\/title>/i
-        ];
-        
-        for (const pattern of patterns) {
-            const match = html.match(pattern);
-            if (match) {
-                return match[1].replace(/<[^>]*>/g, '').trim();
-            }
-        }
-        
-        return null;
-    }
-
-    loadFromCache(cachedData) {
-        this.analyzer.wordStats = new Map(cachedData.wordStats);
-        this.analyzer.articleContents = new Map(cachedData.articleContents);
-        
-        if (cachedData.variantIndex) {
-            try {
-                this.analyzer.variantIndex = new Map(
-                    cachedData.variantIndex.map(([k, v]) => [k, new Set(v)])
-                );
-            } catch (error) {
-                console.warn('Failed to load variant index from cache:', error);
-                this.analyzer.variantIndex = new Map();
-            }
-        }
-        
-        if (cachedData.articleVariants) {
-            try {
-                this.analyzer.articleVariants = new Map(
-                    cachedData.articleVariants.map(([k, v]) => [k, new Map(v)])
-                );
-            } catch (error) {
-                console.warn('Failed to load article variants from cache:', error);
-                this.analyzer.articleVariants = new Map();
-            }
-        }
-        
-        this.processedArticles = new Set(cachedData.processedArticles || []);
-    }
-
-    cacheResults() {
-        if (!this.analyzer.cache) return;
-        
+    
+    // 🎯 从HTML提取标题
+    extractTitleFromHTML(html) {
         try {
-            const cacheData = {
-                wordStats: Array.from(this.analyzer.wordStats.entries()),
-                articleContents: Array.from(this.analyzer.articleContents.entries()),
-                variantIndex: Array.from(this.analyzer.variantIndex.entries()).map(
-                    ([k, v]) => [k, Array.from(v)]
-                ),
-                articleVariants: Array.from(this.analyzer.articleVariants.entries()).map(
-                    ([k, v]) => [k, Array.from(v.entries())]
-                ),
-                processedArticles: Array.from(this.processedArticles),
-                timestamp: Date.now(),
-                version: '4.4'
-            };
+            const titlePatterns = [
+                /<h[1-3][^>]*>(.*?)<\/h[1-3]>/i,
+                /<title[^>]*>(.*?)<\/title>/i
+            ];
             
-            this.analyzer.cache.set('fullAnalysis', cacheData);
+            for (const pattern of titlePatterns) {
+                const match = html.match(pattern);
+                if (match && match[1]) {
+                    return match[1].replace(/<[^>]*>/g, '').trim();
+                }
+            }
+            
+            return null;
         } catch (error) {
-            console.warn('Failed to cache results:', error);
+            console.warn('标题提取失败:', error);
+            return null;
         }
-    }
-
-    isCacheValid(cachedData) {
-        const maxAge = 24 * 60 * 60 * 1000;
-        return cachedData.timestamp && 
-               cachedData.version >= '4.0' && 
-               (Date.now() - cachedData.timestamp) < maxAge;
     }
     
-    notifyProgress(progress) {
-        document.dispatchEvent(new CustomEvent('wordFreqProgress', { 
-            detail: { progress, isProcessing: this.isProcessing }
-        }));
+    // 🎯 发送进度事件
+    dispatchProgressEvent(progress) {
+        try {
+            document.dispatchEvent(new CustomEvent('wordFreqProgress', {
+                detail: { progress }
+            }));
+        } catch (error) {
+            console.warn('进度事件发送失败:', error);
+        }
     }
-
+    
+    // 🎯 睡眠函数
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
     
+    // 🎯 缓存验证
+    isCacheValid(cachedData) {
+        try {
+            if (!cachedData || typeof cachedData !== 'object') {
+                return false;
+            }
+            
+            const { timestamp, dataSize } = cachedData;
+            
+            // 检查时间（24小时有效期）
+            const maxAge = 24 * 60 * 60 * 1000;
+            if (!timestamp || Date.now() - timestamp > maxAge) {
+                return false;
+            }
+            
+            // 检查数据大小
+            if (!dataSize || dataSize < 10) {
+                return false;
+            }
+            
+            return true;
+        } catch (error) {
+            console.warn('缓存验证失败:', error);
+            return false;
+        }
+    }
+    
+    // 🎯 从缓存加载
+    loadFromCache(cachedData) {
+        try {
+            const { wordStats, articleContents, variantIndex, articleVariants } = cachedData;
+            
+            if (wordStats) {
+                this.analyzer.wordStats = new Map(wordStats);
+            }
+            if (articleContents) {
+                this.analyzer.articleContents = new Map(articleContents);
+            }
+            if (variantIndex) {
+                this.analyzer.variantIndex = new Map(variantIndex.map(([k, v]) => [k, new Set(v)]));
+            }
+            if (articleVariants) {
+                this.analyzer.articleVariants = new Map(articleVariants);
+            }
+            
+            console.log('📦 缓存数据加载完成');
+        } catch (error) {
+            console.error('缓存加载失败:', error);
+            throw error;
+        }
+    }
+    
+    // 🎯 缓存结果
+    cacheResults() {
+        try {
+            const cacheData = {
+                timestamp: Date.now(),
+                version: '1.0',
+                wordStats: Array.from(this.analyzer.wordStats.entries()),
+                articleContents: Array.from(this.analyzer.articleContents.entries()),
+                variantIndex: Array.from(this.analyzer.variantIndex.entries()).map(([k, v]) => [k, Array.from(v)]),
+                articleVariants: Array.from(this.analyzer.articleVariants.entries()),
+                dataSize: this.analyzer.wordStats.size
+            };
+            
+            if (this.cache) {
+                this.cache.set('fullAnalysis', cacheData);
+                console.log('💾 分析结果已缓存');
+            }
+        } catch (error) {
+            console.warn('缓存保存失败:', error);
+        }
+    }
+    
+    // 🎯 公共API方法
+    
+    // 获取高频词
+    getTopWords(limit = 100) {
+        try {
+            const words = this.analyzer.getWordFrequencyData();
+            return words.slice(0, limit);
+        } catch (error) {
+            console.error('获取高频词失败:', error);
+            return [];
+        }
+    }
+    
+    // 获取单词详情
+    getWordDetails(word) {
+        try {
+            const stats = this.analyzer.wordStats.get(word.toLowerCase());
+            if (!stats) return null;
+            
+            return {
+                word: word,
+                totalCount: stats.totalCount,
+                articleCount: stats.articles.size,
+                variants: Array.from(stats.variants.entries()),
+                articles: Array.from(stats.articles.entries()).map(([id, data]) => ({
+                    id,
+                    title: data.title,
+                    count: data.count,
+                    contexts: data.contexts || []
+                }))
+            };
+        } catch (error) {
+            console.error('获取单词详情失败:', error);
+            return null;
+        }
+    }
+    
+    // 🎯 智能搜索 - 对外接口
+    searchWords(query) {
+        try {
+            return this.analyzer.searchWords(query);
+        } catch (error) {
+            console.error('智能搜索失败:', error);
+            return [];
+        }
+    }
+    
+    // 🎯 精确搜索 - 对外接口
+    searchWordsExact(query) {
+        try {
+            return this.analyzer.searchWordsExact(query);
+        } catch (error) {
+            console.error('精确搜索失败:', error);
+            return [];
+        }
+    }
+    
+    // 获取统计摘要
+    getStatsSummary() {
+        try {
+            return this.analyzer.getStatsSummary();
+        } catch (error) {
+            console.error('获取统计摘要失败:', error);
+            return {
+                totalUniqueWords: 0,
+                totalVariants: 0,
+                totalWordOccurrences: 0,
+                totalArticlesAnalyzed: 0,
+                averageWordsPerArticle: 0
+            };
+        }
+    }
+    
+    // 🎯 销毁管理器
     destroy() {
-        this.workerManager.cleanup();
-        
-        if (this.performanceUpdateInterval) {
-            clearInterval(this.performanceUpdateInterval);
+        try {
+            console.log('🧹 开始销毁词频管理器...');
+            
+            // 清理数据
+            this.analyzer.wordStats.clear();
+            this.analyzer.articleContents.clear();
+            this.analyzer.variantIndex.clear();
+            this.analyzer.articleVariants.clear();
+            this.analyzer.stemmer.clearCache();
+            this.processedArticles.clear();
+            
+            // 重置状态
+            this.isInitialized = false;
+            this.isInitializing = false;
+            this.initializationError = null;
+            
+            console.log('✅ 词频管理器销毁完成');
+        } catch (error) {
+            console.error('销毁过程中出错:', error);
         }
-        
-        if (this.analyzer.cache) {
-            this.analyzer.cache.clear();
-        }
-        this.classificationCache.clear();
-        this.clearSearchCache();
-        
-        this.analyzer.wordStats.clear();
-        this.analyzer.articleContents.clear();
-        this.analyzer.variantIndex.clear();
-        this.analyzer.articleVariants.clear();
-        this.processedArticles.clear();
-        
-        this.isProcessing = false;
-        this.processingProgress = 0;
-        
-        console.log('📊 词频管理器已销毁并清理资源');
     }
 }
 
-// 导出到全局
-window.EnglishSite.IntelligentWordFrequencyClassifier = IntelligentWordFrequencyClassifier;
-window.EnglishSite.WordStemmer = WordStemmer;
-window.EnglishSite.WordFrequencyAnalyzer = WordFrequencyAnalyzer;
-window.EnglishSite.WordFrequencyManager = WordFrequencyManager;
-window.EnglishSite.PerformanceOptimizer = PerformanceOptimizer;
-window.EnglishSite.WebWorkerManager = WebWorkerManager;
+// 🎯 导出到全局
+window.EnglishSite.WordFrequencyManager = SimplifiedWordFrequencyManager;
+window.EnglishSite.SimplifiedWordFrequencyAnalyzer = SimplifiedWordFrequencyAnalyzer;
+window.EnglishSite.SimplifiedWordStemmer = SimplifiedWordStemmer;
 
-console.log('📊 词频分析模块已加载（完全修复版v4.4）- 搜索功能已彻底修复');
+console.log('📊 词频管理系统已加载（简化重构版v1.0）- 专注可用性和双模式搜索');
