@@ -1,4 +1,4 @@
-// js/main.js - 修复时序冲突版 (确保导航就绪后再启动词频)
+// js/main.js - 词频集成版 (在原有基础上添加词频功能) - 时序冲突修复版
 window.EnglishSite = window.EnglishSite || {};
 
 class App {
@@ -202,7 +202,7 @@ class App {
         if (indicator) indicator.style.display = 'none';
     }
 
-    // 🔧 修复：串行初始化 - 确保导航就绪后再启动词频
+    // 🔧 修复核心：串行初始化 - 确保导航就绪后再启动词频
     async #initApp() {
         this.#showLoadingIndicator('正在初始化应用...');
 
@@ -636,7 +636,7 @@ class App {
         };
     }
 
-    // 保持所有原有事件处理方法不变...
+    // 🚀 保持原有事件处理方法（简化错误处理）
     #onSeriesSelected(e) {
         this.#cleanupModules();
         const {
@@ -898,8 +898,828 @@ class App {
         this.#initializeAudioChapter(chapterId);
     }
 
-    // 其余所有方法保持完全不变...
-    // [为节省空间，这里省略所有其他原有方法，保持100%不变]
+    // 🚀 优化：初始化词汇表（减少错误处理）
+    async #initializeGlossaryOnly(chapterId) {
+        const perfId = window.EnglishSite.PerformanceMonitor?.startMeasure('init-glossary-only', 'module');
+        this.#showLoadingIndicator('正在初始化词汇表...');
+
+        try {
+            if (!window.EnglishSite.Glossary) {
+                throw new Error('Glossary class not found');
+            }
+
+            const glossaryConfig = window.EnglishSite.ConfigManager.createModuleConfig('glossary', {
+                debug: this.config.debug
+            });
+
+            this.glossaryManager = new window.EnglishSite.Glossary(
+                this.elements.content,
+                chapterId,
+                glossaryConfig
+            );
+
+            if (this.glossaryManager.waitForInitialization) {
+                await this.glossaryManager.waitForInitialization();
+            }
+
+            this.#setLoadingState('glossary', true);
+            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+
+        } catch (error) {
+            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+            this.#setLoadingState('glossary', false, error);
+            this.#handleError('init-glossary', error);
+
+            window.EnglishSite.UltraSimpleError?.showError('词汇表初始化失败');
+        } finally {
+            this.#hideLoadingIndicator();
+        }
+    }
+
+    // 🚀 优化：音频章节初始化（并行处理）
+    async #initializeAudioChapter(chapterId) {
+        this.#showLoadingIndicator('正在加载音频同步...');
+
+        try {
+            // 1. 并行加载SRT和初始化AudioSync
+            const [srtText] = await Promise.all([
+                this.#loadSRTFile(chapterId)
+            ]);
+
+            // 2. 初始化AudioSync
+            if (!window.EnglishSite.AudioSync) {
+                throw new Error('AudioSync class not found');
+            }
+
+            const audioSyncConfig = window.EnglishSite.ConfigManager.createModuleConfig('audioSync', {
+                debug: this.config.debug
+            });
+
+            this.audioSyncManager = new window.EnglishSite.AudioSync(
+                this.elements.content,
+                srtText,
+                this.elements.audioPlayer,
+                audioSyncConfig
+            );
+
+            // 3. 并行初始化词汇表
+            const glossaryPromise = this.#initializeGlossaryForAudio(chapterId);
+
+            // 4. 等待AudioSync和Glossary都完成
+            await Promise.all([
+                this.audioSyncManager.waitForInitialization?.() || Promise.resolve(),
+                glossaryPromise
+            ]);
+
+            this.#setLoadingState('audioSync', true);
+            this.#setLoadingState('glossary', true);
+
+        } catch (error) {
+            this.#handleError('init-audio-chapter', error);
+
+            // 降级：尝试仅初始化词汇表
+            try {
+                await this.#initializeGlossaryOnly(chapterId);
+                window.EnglishSite.UltraSimpleError?.showError('音频同步功能不可用，仅加载词汇表');
+            } catch (fallbackError) {
+                this.#handleChapterLoadError(chapterId, fallbackError);
+            }
+        } finally {
+            this.#hideLoadingIndicator();
+        }
+    }
+
+    // 🚀 新增：音频模式下的词汇表初始化
+    async #initializeGlossaryForAudio(chapterId) {
+        if (!window.EnglishSite.Glossary) return;
+
+        const glossaryConfig = window.EnglishSite.ConfigManager.createModuleConfig('glossary', {
+            debug: this.config.debug,
+            audioManager: this.audioSyncManager
+        });
+
+        this.glossaryManager = new window.EnglishSite.Glossary(
+            this.elements.content,
+            chapterId,
+            glossaryConfig
+        );
+
+        if (this.glossaryManager.waitForInitialization) {
+            await this.glossaryManager.waitForInitialization();
+        }
+    }
+
+    // 🚀 优化：SRT文件加载（缓存优化）
+    async #loadSRTFile(chapterId) {
+        const perfId = window.EnglishSite.PerformanceMonitor?.startMeasure('load-srt', 'network');
+
+        try {
+            // 先检查缓存
+            const cache = window.EnglishSite.CacheManager?.getCache('srt');
+            const cachedSrt = cache?.get(chapterId);
+
+            if (cachedSrt) {
+                window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+                return cachedSrt;
+            }
+
+            const response = await fetch(`srt/${chapterId}.srt`);
+            if (!response.ok) {
+                throw new Error(`SRT file not found: ${response.statusText}`);
+            }
+
+            const srtText = await response.text();
+            cache?.set(chapterId, srtText);
+
+            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+            return srtText;
+
+        } catch (error) {
+            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+            throw error;
+        }
+    }
+
+    // 🚀 保留原有方法（简化处理）
+    #handleChapterLoadError(chapterId, error) {
+        const errorMessage = `
+            <div class="error-message" style="text-align: center; padding: 40px; color: #dc3545;">
+                <h3>📖 章节加载失败</h3>
+                <p>章节 <strong>${chapterId}</strong> 加载时出现错误：</p>
+                <p style="font-style: italic; color: #6c757d;">${error.message}</p>
+                <button onclick="location.reload()" 
+                        style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px;">
+                    🔄 重新加载
+                </button>
+            </div>
+        `;
+        this.elements.content.innerHTML = errorMessage;
+        this.#handleError('chapter-load', error, {
+            chapterId
+        });
+    }
+
+    // 🚀 优化：章节导航更新（简化DOM操作）
+    #onNavigationUpdated(e) {
+        const {
+            prevChapterId,
+            nextChapterId
+        } = e.detail;
+
+        this.#cleanupChapterNavigation();
+
+        if (!prevChapterId && !nextChapterId) return;
+
+        this.#createContentEndNavigation(prevChapterId, nextChapterId);
+
+        if (this.config.debug) {
+            console.log('[App] 章节导航已更新:', {
+                prevChapterId,
+                nextChapterId
+            });
+        }
+    }
+
+    // 🚀 优化：清理章节导航（减少DOM查询）
+    #cleanupChapterNavigation() {
+        const existingNav = this.elements.content.querySelector('.content-chapter-nav');
+        if (existingNav) existingNav.remove();
+
+        if (this.elements.chapterNavContainer) {
+            this.elements.chapterNavContainer.style.display = 'none';
+            this.elements.chapterNavContainer.innerHTML = '';
+        }
+
+        this.chapterNavState.isVisible = false;
+        this.chapterNavState.navElement = null;
+    }
+
+    // 🚀 保留原有创建导航方法（优化DOM操作）
+    #createContentEndNavigation(prevChapterId, nextChapterId) {
+        const navWrapper = document.createElement('div');
+        navWrapper.className = 'content-chapter-nav';
+        navWrapper.style.cssText = `
+            margin-top: 40px; padding: 24px 0; border-top: 2px solid #e9ecef;
+            opacity: 0; transform: translateY(20px);
+            transition: opacity 0.4s ease, transform 0.4s ease; pointer-events: none;
+        `;
+
+        const navTitle = document.createElement('div');
+        navTitle.style.cssText = `
+            text-align: center; font-size: 0.9rem; color: #6c757d;
+            margin-bottom: 16px; font-weight: 500;
+        `;
+        navTitle.textContent = 'Continue Reading';
+        navWrapper.appendChild(navTitle);
+
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = `
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 16px; flex-wrap: wrap;
+        `;
+
+        // 创建按钮
+        if (prevChapterId) {
+            buttonContainer.appendChild(this.#createChapterNavButton(prevChapterId, '← Previous', 'prev'));
+        } else {
+            buttonContainer.appendChild(this.#createPlaceholder());
+        }
+
+        buttonContainer.appendChild(this.#createHomeButton());
+
+        if (nextChapterId) {
+            buttonContainer.appendChild(this.#createChapterNavButton(nextChapterId, 'Next →', 'next'));
+        } else {
+            buttonContainer.appendChild(this.#createPlaceholder());
+        }
+
+        navWrapper.appendChild(buttonContainer);
+        this.elements.content.appendChild(navWrapper);
+
+        this.chapterNavState.navElement = navWrapper;
+        this.#setupChapterNavScrollListener();
+    }
+
+    // 🚀 新增：创建占位元素
+    #createPlaceholder() {
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = 'flex: 1; min-width: 120px;';
+        return placeholder;
+    }
+
+    // 🚀 新增：创建首页按钮
+    #createHomeButton() {
+        const homeButton = document.createElement('button');
+        homeButton.innerHTML = 'Back to Index';
+        homeButton.style.cssText = `
+            padding: 12px 20px; background: linear-gradient(135deg, #6c757d, #5a6268);
+            color: white; border: none; border-radius: 6px; font-size: 14px;
+            font-weight: 500; cursor: pointer; transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        `;
+
+        homeButton.addEventListener('click', () => {
+            window.location.hash = '';
+        });
+
+        return homeButton;
+    }
+
+    // 🚀 优化：创建章节导航按钮（减少重复代码）
+    #createChapterNavButton(chapterId, text, type) {
+        const button = document.createElement('button');
+        button.innerHTML = text;
+        button.dataset.chapterId = chapterId;
+
+        const colors = {
+            prev: {
+                base: '#28a745',
+                hover: '#218838',
+                gradient: '#20c997'
+            },
+            next: {
+                base: '#007bff',
+                hover: '#0056b3',
+                gradient: '#17a2b8'
+            }
+        };
+
+        const color = colors[type];
+        button.style.cssText = `
+            flex: 1; min-width: 120px; max-width: 200px; padding: 12px 20px;
+            background: linear-gradient(135deg, ${color.base}, ${color.gradient});
+            color: white; border: none; border-radius: 6px; font-size: 14px;
+            font-weight: 500; cursor: pointer; transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        `;
+
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (this.navigation) {
+                this.navigation.navigateToChapter(chapterId);
+            }
+        });
+
+        return button;
+    }
+
+    // 🚀 优化：滚动监听（性能优化）
+    #setupChapterNavScrollListener() {
+        if (!this.chapterNavState.navElement) return;
+
+        const contentArea = this.elements.content;
+        if (!contentArea) return;
+
+        const handleScroll = this.#throttle(() => {
+            const scrollTop = contentArea.scrollTop;
+            const scrollHeight = contentArea.scrollHeight;
+            const clientHeight = contentArea.clientHeight;
+
+            const scrollPercent = scrollTop / (scrollHeight - clientHeight);
+
+            const shouldShow = scrollPercent >= this.chapterNavState.scrollThreshold;
+
+            if (shouldShow && !this.chapterNavState.isVisible) {
+                this.#showChapterNavigation();
+            } else if (!shouldShow && this.chapterNavState.isVisible) {
+                this.#hideChapterNavigation();
+            }
+        }, 100);
+
+        contentArea.addEventListener('scroll', handleScroll);
+
+        // 立即检查（处理短内容）
+        setTimeout(() => {
+            const scrollHeight = contentArea.scrollHeight;
+            const clientHeight = contentArea.clientHeight;
+
+            if (scrollHeight <= clientHeight * 1.1) {
+                this.#showChapterNavigation();
+            }
+        }, 100);
+    }
+
+    // 🚀 优化：显示/隐藏章节导航（减少DOM操作）
+    #showChapterNavigation() {
+        if (!this.chapterNavState.navElement || this.chapterNavState.isVisible) return;
+
+        this.chapterNavState.isVisible = true;
+        const navElement = this.chapterNavState.navElement;
+        navElement.style.opacity = '1';
+        navElement.style.transform = 'translateY(0)';
+        navElement.style.pointerEvents = 'auto';
+    }
+
+    #hideChapterNavigation() {
+        if (!this.chapterNavState.navElement || !this.chapterNavState.isVisible) return;
+
+        this.chapterNavState.isVisible = false;
+        const navElement = this.chapterNavState.navElement;
+        navElement.style.opacity = '0';
+        navElement.style.transform = 'translateY(20px)';
+        navElement.style.pointerEvents = 'none';
+    }
+
+    // 🚀 优化：滚动处理（缓存元素）
+    #handleScrollOptimized() {
+        const {
+            content: contentArea,
+            backToTop: backToTopButton
+        } = this.elements;
+        if (!contentArea || !backToTopButton) return;
+
+        const shouldShow = contentArea.scrollTop > 300;
+        backToTopButton.classList.toggle('visible', shouldShow);
+    }
+
+    #handleBackToTopClick() {
+        if (this.elements.content) {
+            this.elements.content.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    // 🚀 优化：模块清理（统一处理）
+    #cleanupModules() {
+        this.#hideLoadingIndicator();
+        this.#cleanupChapterNavigation();
+
+        // 🚀 优化：并行清理
+        const cleanupPromises = [];
+
+        if (this.audioSyncManager?.destroy) {
+            cleanupPromises.push(
+                this.audioSyncManager.destroy().catch(error => {
+                    console.warn('[App] AudioSync cleanup error:', error);
+                })
+            );
+        }
+
+        if (this.glossaryManager?.destroy) {
+            this.glossaryManager.destroy();
+        }
+
+        // 重置状态
+        this.audioSyncManager = null;
+        this.glossaryManager = null;
+        this.#setLoadingState('audioSync', false);
+        this.#setLoadingState('glossary', false);
+
+        // 隐藏播放器
+        if (this.elements.playerSection) {
+            this.elements.playerSection.style.display = 'none';
+        }
+
+        return Promise.all(cleanupPromises);
+    }
+
+    // 🚀 优化：单列垂直布局（性能优化）
+    #renderChapterGrid(chapters, title) {
+        if (!chapters || chapters.length === 0) {
+            this.elements.content.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <p>暂无内容</p>
+                </div>
+            `;
+            return;
+        }
+
+        // 🚀 优化：使用DocumentFragment减少重绘
+        const {
+            isMobile,
+            isTablet
+        } = this.state.screenInfo;
+        const gap = isMobile ? '16px' : '20px';
+
+this.elements.content.innerHTML = `
+    <div class="chapter-list-overview" style="
+        display: block !important;
+        max-width: 800px !important;
+        margin: 0 auto !important;
+        padding: ${isMobile ? '16px' : '24px'} !important;
+        background: white !important;
+        width: 100% !important;
+    "></div>
+`;
+
+        const container = this.elements.content.querySelector('.chapter-list-overview');
+        const fragment = document.createDocumentFragment();
+
+        // 🚀 优化：批量创建元素
+        chapters.forEach(chapter => {
+            const element = this.#createChapterElement(chapter);
+            fragment.appendChild(element);
+        });
+
+        container.appendChild(fragment);
+    }
+
+    // 🎯 完全重写章节元素创建 - 添加智能难度显示
+    #createChapterElement(chapter) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'chapter-overview-item';
+
+        // 🚀 使用缓存的屏幕信息
+        const { isMobile, isTablet } = this.state.screenInfo;
+
+        // 🔍 智能检测缩略图是否可用
+        const hasThumbnail = this.#hasValidThumbnail(chapter);
+
+        // 🎨 水平布局样式 - 根据是否有缩略图调整
+        wrapper.style.cssText = `
+            margin-bottom: 0 !important; 
+            border: none !important; 
+            border-bottom: 1px solid #f0f0f0 !important;
+            border-radius: 0 !important; 
+            background: transparent !important; 
+            transition: all 0.2s ease !important;
+            overflow: visible !important;
+            box-shadow: none !important;
+            display: flex !important;
+            align-items: flex-start !important;
+            padding: 24px 0 !important;
+            gap: ${isMobile ? '12px' : '16px'} !important;
+            position: relative !important;
+            height: auto !important;
+        `;
+
+        const link = document.createElement('a');
+        link.className = 'overview-chapter-link';
+        link.href = `#${chapter.id}`;
+        link.dataset.chapterId = chapter.id;
+        link.style.cssText = `
+            text-decoration: none !important; 
+            color: inherit !important; 
+            display: flex !important;
+            align-items: flex-start !important;
+            width: 100% !important;
+            gap: ${hasThumbnail ? (isMobile ? '12px' : '16px') : '0'} !important;
+            overflow: visible !important;
+            height: auto !important;
+        `;
+
+        // 🎨 左侧内容区域 - 根据是否有缩略图调整宽度
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'chapter-info';
+        contentContainer.style.cssText = `
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: ${isMobile ? '6px' : '8px'} !important;
+            min-width: 0 !important;
+            overflow: visible !important;
+            ${hasThumbnail ? '' : 'width: 100% !important;'}
+        `;
+
+        // 🎨 系列信息（顶部）
+        const seriesInfo = document.createElement('div');
+        seriesInfo.className = 'chapter-series-info';
+        seriesInfo.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            font-size: ${isMobile ? '12px' : '13px'} !important;
+            color: #666 !important;
+            font-weight: 500 !important;
+            margin-bottom: 4px !important;
+        `;
+
+        const seriesIcon = document.createElement('span');
+        seriesIcon.textContent = '📺';
+        seriesIcon.style.cssText = `
+            font-size: ${isMobile ? '11px' : '12px'} !important;
+        `;
+
+        const seriesText = document.createElement('span');
+        seriesText.textContent = chapter.seriesTitle || '6 Minutes English';
+        seriesText.style.cssText = `
+            color: #666 !important;
+        `;
+
+        seriesInfo.appendChild(seriesIcon);
+        seriesInfo.appendChild(seriesText);
+
+        // 🎨 标题
+        const title = document.createElement('h2');
+        title.style.cssText = `
+            margin: 0 !important; 
+            font-size: ${isMobile ? '18px' : '22px'} !important; 
+            color: #1a1a1a !important;
+            font-weight: 700 !important;
+            line-height: 1.3 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            margin-bottom: ${isMobile ? '6px' : '8px'} !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        `;
+        title.textContent = chapter.title;
+
+        // 🎨 描述
+        const description = document.createElement('p');
+        description.style.cssText = `
+            margin: 0 !important; 
+            font-size: ${isMobile ? '14px' : '15px'} !important; 
+            color: #666 !important; 
+            line-height: 1.4 !important;
+            font-weight: 400 !important;
+            margin-bottom: ${isMobile ? '8px' : '12px'} !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        `;
+        description.textContent = chapter.description || 'Explore this English learning topic';
+
+        // 🎨 底部标签行（智能难度版本）
+        const tagsRow = document.createElement('div');
+        tagsRow.className = 'chapter-tags-row';
+        tagsRow.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: ${isMobile ? '10px' : '12px'} !important;
+            font-size: ${isMobile ? '12px' : '13px'} !important;
+            color: #666 !important;
+            font-weight: 500 !important;
+            flex-wrap: wrap !important;
+        `;
+
+        // 🎯 智能难度计算 - 使用词频管理器
+        const getDifficulty = () => {
+            // 检查词频管理器是否已初始化
+            if (this.wordFreqManager?.isInitialized) {
+                try {
+                    const difficulty = this.wordFreqManager.getArticleDifficulty(chapter.id);
+                    if (difficulty) {
+                        return {
+                            stars: difficulty.stars,
+                            tooltip: difficulty.tooltip || `难度评级：${difficulty.label}`
+                        };
+                    }
+                } catch (error) {
+                    console.warn('智能难度计算失败，使用默认值:', error);
+                }
+            }
+            
+            // 降级方案：基于章节ID或标题长度的简单推断
+            const titleLength = chapter.title?.length || 30;
+            let stars;
+            if (titleLength < 25) stars = 2;
+            else if (titleLength < 40) stars = 3;
+            else stars = 4;
+            
+            return { 
+                stars, 
+                tooltip: "智能分析中，当前为预估难度" 
+            };
+        };
+
+        const { stars, tooltip } = getDifficulty();
+
+        // 星星难度（智能计算）
+        const difficultyTag = document.createElement('span');
+        difficultyTag.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            color: #ffc107 !important;
+            cursor: help !important;
+        `;
+        difficultyTag.innerHTML = `<span title="${tooltip}">${'⭐'.repeat(stars)}</span>`;
+
+        // 阅读时间（智能推断）
+        const timeTag = document.createElement('span');
+        timeTag.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            color: #666 !important;
+        `;
+        const estimatedTime = chapter.audio ? '6 min' : '4 min';
+        timeTag.innerHTML = `
+            <span>📖</span>
+            <span>${estimatedTime}</span>
+        `;
+
+        // 媒体类型（根据实际数据判断）
+        const mediaTag = document.createElement('span');
+        mediaTag.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            color: #666 !important;
+        `;
+
+        if (chapter.audio) {
+            mediaTag.innerHTML = `
+                <span>🎵</span>
+                <span>Audio</span>
+            `;
+        } else {
+            mediaTag.innerHTML = `
+                <span>📖</span>
+                <span>Article</span>
+            `;
+        }
+
+        tagsRow.appendChild(difficultyTag);
+        tagsRow.appendChild(timeTag);
+        tagsRow.appendChild(mediaTag);
+
+        // 🎨 组装左侧内容
+        contentContainer.appendChild(seriesInfo);
+        contentContainer.appendChild(title);
+        contentContainer.appendChild(description);
+        contentContainer.appendChild(tagsRow);
+
+        // 🎨 组装整体布局（左侧内容 + 右侧图片）
+        link.appendChild(contentContainer);
+
+        // 🔍 条件渲染：只有在有有效缩略图时才创建图片容器
+        if (hasThumbnail) {
+            const imageContainer = this.#createThumbnailContainer(chapter, isMobile);
+            link.appendChild(imageContainer);
+        }
+
+        wrapper.appendChild(link);
+
+        // 🎨 悬停效果
+        const addHoverEffect = () => {
+            wrapper.style.backgroundColor = '#fafafa';
+            title.style.color = '#1a73e8';
+            
+            // 只有在有缩略图时才应用图片悬停效果
+            if (hasThumbnail) {
+                const thumbnail = wrapper.querySelector('.chapter-thumbnail');
+                if (thumbnail) {
+                    thumbnail.style.transform = 'scale(1.05)';
+                }
+            }
+        };
+
+        const removeHoverEffect = () => {
+            wrapper.style.backgroundColor = 'transparent';
+            title.style.color = '#1a1a1a';
+            
+            // 只有在有缩略图时才重置图片效果
+            if (hasThumbnail) {
+                const thumbnail = wrapper.querySelector('.chapter-thumbnail');
+                if (thumbnail) {
+                    thumbnail.style.transform = 'scale(1)';
+                }
+            }
+        };
+
+        if (isMobile) {
+            wrapper.addEventListener('touchstart', addHoverEffect);
+            wrapper.addEventListener('touchend', removeHoverEffect);
+            wrapper.addEventListener('touchcancel', removeHoverEffect);
+        } else {
+            wrapper.addEventListener('mouseenter', addHoverEffect);
+            wrapper.addEventListener('mouseleave', removeHoverEffect);
+        }
+
+        return wrapper;
+    }
+
+    // 🔍 智能检测缩略图是否有效
+    #hasValidThumbnail(chapter) {
+        if (!chapter.thumbnail) {
+            return false;
+        }
+
+        if (typeof chapter.thumbnail !== 'string' || !chapter.thumbnail.trim()) {
+            return false;
+        }
+
+        const placeholderPaths = [
+            'images/placeholder.jpg',
+            'placeholder.jpg',
+            '/placeholder.jpg',
+            'images/default.jpg',
+            'default.jpg'
+        ];
+
+        const normalizedPath = chapter.thumbnail.toLowerCase().replace(/^\.\//, '');
+        if (placeholderPaths.includes(normalizedPath)) {
+            return false;
+        }
+
+        const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i;
+        const isHttpUrl = /^https?:\/\//.test(chapter.thumbnail);
+        const isRelativePath = /^(\.\/|\/|images\/|assets\/)/.test(chapter.thumbnail);
+        const hasImageExtension = imageExtensions.test(chapter.thumbnail);
+
+        return (isHttpUrl || isRelativePath) && (hasImageExtension || isHttpUrl);
+    }
+
+    // 🎨 创建缩略图容器
+    #createThumbnailContainer(chapter, isMobile) {
+        const imageContainer = document.createElement('div');
+        imageContainer.className = 'chapter-thumbnail-container';
+        imageContainer.style.cssText = `
+            width: ${isMobile ? '80px' : '120px'} !important;
+            height: ${isMobile ? '60px' : '90px'} !important;
+            flex-shrink: 0 !important;
+            border-radius: 8px !important;
+            overflow: hidden !important;
+            background: #f8f9fa !important;
+            position: relative !important;
+        `;
+
+        const thumbnail = document.createElement('img');
+        thumbnail.className = 'chapter-thumbnail';
+        thumbnail.loading = 'lazy';
+        thumbnail.src = chapter.thumbnail;
+        thumbnail.alt = chapter.title;
+        thumbnail.style.cssText = `
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block !important;
+            transition: transform 0.3s ease, opacity 0.3s ease !important;
+        `;
+
+        thumbnail.addEventListener('error', () => {
+            this.#handleThumbnailError(imageContainer, thumbnail);
+        }, { once: true });
+
+        thumbnail.addEventListener('load', () => {
+            thumbnail.style.opacity = '1';
+        }, { once: true });
+
+        thumbnail.style.opacity = '0.8';
+
+        imageContainer.appendChild(thumbnail);
+        return imageContainer;
+    }
+
+    // 🔧 缩略图加载错误处理
+    #handleThumbnailError(container, thumbnail) {
+        console.warn('[App] 缩略图加载失败:', thumbnail.src);
+        
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = `
+            width: 100% !important;
+            height: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+            color: #6c757d !important;
+            font-size: 24px !important;
+        `;
+        placeholder.textContent = '📖';
+
+        container.innerHTML = '';
+        container.appendChild(placeholder);
+        container.classList.add('thumbnail-error');
+    }
 
     // === 公共API方法 ===
     async waitForInitialization() {
@@ -933,6 +1753,32 @@ class App {
         }
     }
 
+    // 🚀 优化：测试CSS选择器
+    testCSSOptimization() {
+        const testResults = {
+            domCacheHits: this.domCache.size,
+            screenInfoCached: !!this.state.screenInfo,
+            modulesLoaded: Object.fromEntries(this.state.loading),
+            overallHealth: 0
+        };
+
+        // 测试关键功能
+        const tests = [
+            !!this.elements.content,
+            !!this.elements.mainNav,
+            this.state.loading.size > 0,
+            !!this.navigation
+        ];
+
+        testResults.overallHealth = (tests.filter(Boolean).length / tests.length * 100).toFixed(1);
+
+        if (this.config.debug) {
+            console.log('[App] 优化测试结果:', testResults);
+        }
+
+        return testResults;
+    }
+
     destroy() {
         if (this.state.isDestroyed) return;
 
@@ -958,9 +1804,117 @@ class App {
             }
         });
     }
-
-    // [其他所有方法保持原样...]
 }
+
+// 🚀 优化：启动逻辑（减少重复检查）
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        await window.EnglishSite.coreToolsReady;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const appOptions = {
+            debug: urlParams.has('debug') || window.location.hostname === 'localhost',
+            enableErrorBoundary: urlParams.has('errorBoundary') || urlParams.has('beta')
+        };
+
+        // 创建应用实例
+        window.app = new App(appOptions);
+
+        // 等待应用初始化
+        await window.app.waitForInitialization();
+
+        console.log('[App] Application started successfully');
+
+        // 🚀 优化：调试工具（按需加载）
+        if (appOptions.debug && window.appTools) {
+            window.appTools.app = window.app;
+            console.log('🎯 App实例已添加到 window.appTools.app');
+
+            // 延迟运行测试（不阻塞主线程）
+            setTimeout(() => {
+                const testResults = window.app.testCSSOptimization();
+                console.log('🧪 优化测试结果:', testResults);
+
+                const status = window.app.getAppStatus();
+                console.log('📱 当前应用状态:', status);
+            }, 2000);
+        }
+
+    } catch (error) {
+        console.error('[App] Failed to start application:', error);
+
+        // 🚀 优化：错误处理（非阻塞）
+        window.EnglishSite?.SimpleErrorHandler?.record('app', 'startup', error);
+        window.EnglishSite?.UltraSimpleError?.showError('应用启动失败，请刷新页面重试');
+
+        // 🚀 优化：降级方案（简化）
+        const contentArea = document.getElementById('content');
+        if (contentArea) {
+            contentArea.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #dc3545;">
+                    <h2>🚫 应用启动失败</h2>
+                    <p>发生了严重错误，请刷新页面或联系技术支持。</p>
+                    <button onclick="location.reload()" 
+                            style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
+                        🔄 重新加载
+                    </button>
+                </div>
+            `;
+        }
+    }
+});
 
 // 导出App类
 window.EnglishSite.App = App;
+
+// 🚀 全局调试函数
+window.debugNavData = function() {
+    const app = window.app;
+    if (!app) {
+        console.error('应用实例不存在');
+        return;
+    }
+
+    console.log('=== 🔍 导航数据调试信息 ===');
+    console.log('1. 原始导航数据:', app.navData);
+    console.log('2. 数据类型:', typeof app.navData, Array.isArray(app.navData));
+    console.log('3. 数据长度:', app.navData?.length);
+
+    if (app.navData && Array.isArray(app.navData)) {
+        app.navData.forEach((item, index) => {
+            console.log(`4.${index} 项目结构:`, {
+                id: item.id,
+                title: item.title || item.series,
+                type: item.type,
+                hasChapters: !!item.chapters,
+                chaptersCount: item.chapters?.length || 0,
+                hasChildren: !!item.children,
+                childrenCount: item.children?.length || 0,
+                allProperties: Object.keys(item)
+            });
+        });
+    }
+
+    // 测试递归提取
+    console.log('5. 测试递归提取:');
+    try {
+        const chapters = app.extractAllChaptersFromNavData?.() ||
+            app.getAllChaptersFromNavData?.() || [];
+        console.log('6. 提取结果:', chapters);
+        console.log('7. 章节数量:', chapters.length);
+
+        return {
+            navData: app.navData,
+            extractedChapters: chapters,
+            summary: {
+                topLevelItems: app.navData?.length || 0,
+                totalChapters: chapters.length
+            }
+        };
+    } catch (error) {
+        console.error('递归提取测试失败:', error);
+        return {
+            error: error.message
+        };
+    }
+};
