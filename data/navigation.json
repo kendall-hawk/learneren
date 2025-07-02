@@ -1,11 +1,10 @@
 [
 {
   "id": "word-frequency-tool",
-  "title": "词频分析",
-  "type": "tool", 
-  "description": "分析全站词汇使用频率",
-  "icon": "🔤",
-  "action": "wordFrequency"
+  "title": "词频分析", 
+  "type": "tool",
+  "action": "wordFrequency",         
+  "category": "analysis"
 },
   {
     "id": "all-articles",
