@@ -1,4 +1,4 @@
-// js/word-frequency.js - 简化重构版 v1.0 (专注可用性和双模式搜索)
+// js/word-frequency.js - 优化版 v2.0 (修复导航连接+性能优化)
 window.EnglishSite = window.EnglishSite || {};
 
 // 🎯 简化的词干提取器 - 保留核心功能，移除复杂缓存
@@ -520,6 +520,132 @@ class SimplifiedWordFrequencyAnalyzer {
         
         return mostCommon;
     }
+
+    // 🎯 分布密度算法（方案2）
+    calculateDistributionScore(baseWord, stats) {
+        const frequency = stats.totalCount;
+        const articleCount = stats.articles.size;
+        const totalArticles = this.articleContents.size;
+        
+        if (totalArticles === 0 || articleCount === 0) return frequency;
+        
+        // 分布密度：在多少比例的文章中出现
+        const distributionRatio = articleCount / totalArticles;
+        
+        // 平均密度：每篇文章平均出现次数
+        const avgDensity = frequency / articleCount;
+        
+        // 综合评分：频次 × 分布密度 × 稳定性修正
+        const distributionWeight = Math.sqrt(distributionRatio); // 开方避免过度惩罚
+        const stabilityWeight = Math.log(avgDensity + 1) / Math.log(10); // 对数平滑
+        
+        return frequency * distributionWeight * stabilityWeight;
+    }
+
+    // 🎯 获取智能排序的词频数据
+    getWordFrequencyDataSmart() {
+        const data = [];
+        
+        this.wordStats.forEach((stats, baseWord) => {
+            const distributionScore = this.calculateDistributionScore(baseWord, stats);
+            
+            data.push({
+                word: baseWord,
+                totalCount: stats.totalCount,
+                articleCount: stats.articles.size,
+                distributionScore: distributionScore, // 🆕 智能评分
+                distributionRatio: stats.articles.size / this.articleContents.size, // 🆕 分布比例
+                avgPerArticle: (stats.totalCount / stats.articles.size).toFixed(1), // 🆕 平均密度
+                variants: Array.from(stats.variants.entries()).sort((a, b) => b[1] - a[1]),
+                mostCommonVariant: this.getMostCommonVariant(stats.variants),
+                articles: Array.from(stats.articles.entries()).map(([id, articleData]) => ({
+                    id,
+                    title: articleData.title,
+                    count: articleData.count,
+                    contexts: articleData.contexts,
+                    variants: articleData.variants
+                }))
+            });
+        });
+        
+        // 🎯 按智能评分排序，而不是单纯频次
+        data.sort((a, b) => b.distributionScore - a.distributionScore);
+        return data;
+    }
+
+    // 🎯 基于分布评分的章节难度计算
+    calculateSmartArticleDifficulty(articleId) {
+        const article = this.articleContents.get(articleId);
+        if (!article) return null;
+        
+        const words = this.extractWords(article.content);
+        let totalDifficultyScore = 0;
+        let validWordCount = 0;
+        let difficultyBreakdown = { easy: 0, medium: 0, hard: 0 };
+        
+        words.forEach(word => {
+            if (this.isValidWord(word)) {
+                const stem = this.stemmer.getStem(word);
+                const stats = this.wordStats.get(stem);
+                
+                if (stats) {
+                    validWordCount++;
+                    
+                    // 基于分布评分计算单词难度
+                    const distributionScore = this.calculateDistributionScore(stem, stats);
+                    
+                    // 智能评分越高 = 越常用 = 越简单 = 难度越低
+                    const wordDifficulty = this.convertScoreToDifficulty(distributionScore);
+                    totalDifficultyScore += wordDifficulty;
+                    
+                    // 统计难度分布
+                    if (wordDifficulty <= 2) difficultyBreakdown.easy++;
+                    else if (wordDifficulty <= 3.5) difficultyBreakdown.medium++;
+                    else difficultyBreakdown.hard++;
+                }
+            }
+        });
+        
+        if (validWordCount === 0) return { stars: 3, label: "⭐⭐⭐ 中等" };
+        
+        const avgDifficulty = totalDifficultyScore / validWordCount;
+        const stars = Math.round(avgDifficulty);
+        
+        // 计算高频词占比（用于显示）
+        const easyWordRatio = (difficultyBreakdown.easy / validWordCount * 100).toFixed(1);
+        
+        return {
+            stars: Math.max(1, Math.min(5, stars)),
+            avgDifficulty: avgDifficulty.toFixed(2),
+            validWordCount: validWordCount,
+            easyWordRatio: easyWordRatio,
+            label: this.getStarLabel(stars),
+            breakdown: difficultyBreakdown,
+            tooltip: `${easyWordRatio}% 高频词汇`
+        };
+    }
+
+    // 🎯 将分布评分转换为难度等级
+    convertScoreToDifficulty(distributionScore) {
+        // 根据分布评分的实际分布，映射到1-5难度
+        if (distributionScore >= 20) return 1;      // 很简单（高频高分布）
+        if (distributionScore >= 10) return 2;      // 简单  
+        if (distributionScore >= 5) return 3;       // 中等
+        if (distributionScore >= 2) return 4;       // 困难
+        return 5;                                   // 很困难（低频低分布）
+    }
+
+    // 🎯 星级标签
+    getStarLabel(stars) {
+        const labels = {
+            1: "⭐ 入门级",
+            2: "⭐⭐ 简单", 
+            3: "⭐⭐⭐ 中等",
+            4: "⭐⭐⭐⭐ 困难",
+            5: "⭐⭐⭐⭐⭐ 专家级"
+        };
+        return labels[stars] || "⭐⭐⭐ 中等";
+    }
     
     // 🎯 获取词频数据
     getWordFrequencyData() {
@@ -594,7 +720,7 @@ class SimplifiedWordFrequencyAnalyzer {
     }
 }
 
-// 🎯 简化的词频管理器 - 专注可用性
+// 🎯 优化版词频管理器 - 修复导航连接和性能优化
 class SimplifiedWordFrequencyManager {
     constructor() {
         this.analyzer = new SimplifiedWordFrequencyAnalyzer();
@@ -604,16 +730,65 @@ class SimplifiedWordFrequencyManager {
         this.processedArticles = new Set();
         this.processingProgress = 0;
         
-        // 简单缓存
-        this.cache = window.EnglishSite.CacheManager?.get('wordFreq') ||
-            window.EnglishSite.CacheManager?.create('wordFreq', 100, 3600000);
+        // 🔧 优化：统一缓存策略，优先使用navigation缓存
+        this.cache = this.getOptimalCache();
         
-        console.log('✅ 简化词频管理器已创建');
+        console.log('✅ 优化版词频管理器已创建');
         
-        // 🎯 启动异步初始化 - 避免构造函数死锁
-        setTimeout(() => {
+        // 🔧 优化：增加导航系统就绪检查
+        setTimeout(async () => {
+            await this.waitForNavigationReady();
             this.startInitialization();
         }, 0);
+    }
+    
+    // 🆕 获取最优缓存策略
+    getOptimalCache() {
+        // 优先使用navigation的缓存系统，确保数据一致性
+        if (window.app?.navigation?.cache) {
+            console.log('🔗 使用navigation缓存系统');
+            return window.app.navigation.cache;
+        }
+        
+        // 回退到自有缓存
+        return window.EnglishSite.CacheManager?.get('wordFreq') ||
+            window.EnglishSite.CacheManager?.create('wordFreq', 100, 3600000) ||
+            new Map();
+    }
+    
+    // 🆕 等待导航系统就绪
+    async waitForNavigationReady() {
+        const maxWaitTime = 10000; // 10秒超时
+        const checkInterval = 100;
+        let waitedTime = 0;
+        
+        console.log('⏳ 等待导航系统就绪...');
+        
+        while (waitedTime < maxWaitTime) {
+            // 检查导航系统是否已经初始化完成
+            if (window.app?.navigation?.state?.chaptersMap?.size > 0) {
+                console.log('✅ 导航系统已就绪');
+                return true;
+            }
+            
+            // 检查导航系统是否正在初始化
+            if (window.app?.navigation?.initPromise) {
+                try {
+                    await window.app.navigation.initPromise;
+                    console.log('✅ 导航系统初始化完成');
+                    return true;
+                } catch (error) {
+                    console.warn('⚠️ 导航系统初始化失败:', error);
+                    break;
+                }
+            }
+            
+            await this.sleep(checkInterval);
+            waitedTime += checkInterval;
+        }
+        
+        console.warn('⚠️ 导航系统等待超时，将使用备用方案');
+        return false;
     }
     
     // 🎯 启动初始化
@@ -627,8 +802,8 @@ class SimplifiedWordFrequencyManager {
         try {
             console.log('🚀 开始词频分析器初始化...');
             
-            // 🎯 检查缓存
-            const cachedData = this.cache?.get('fullAnalysis');
+            // 🔧 优化：检查统一缓存
+            const cachedData = this.cache?.get ? this.cache.get('fullAnalysis') : null;
             if (cachedData && this.isCacheValid(cachedData)) {
                 console.log('📦 从缓存加载词频数据');
                 this.loadFromCache(cachedData);
@@ -722,88 +897,90 @@ class SimplifiedWordFrequencyManager {
         }
     }
     
-    // 🎯 获取所有章节 - 简化数据源检测
-async getAllChapters() {
-    console.log('📋 获取文章列表...');
-    
-    // 🔧 修复：正确访问navigation数据
-    try {
-        // 方法1：从navigation实例的chaptersMap获取
-        if (window.app?.navigation?.state?.chaptersMap) {
-            const chaptersMap = window.app.navigation.state.chaptersMap;
-            if (chaptersMap.size > 0) {
-                const chapters = Array.from(chaptersMap.keys()).filter(id => 
-                    id && typeof id === 'string' && id.trim().length > 0
-                );
+    // 🔧 优化：修复数据获取逻辑，正确连接导航系统
+    async getAllChapters() {
+        console.log('📋 获取文章列表...');
+        
+        // 🔧 优化方法1: 正确使用navigation的公开API
+        try {
+            if (window.app?.navigation?.getAllChapters) {
+                const chapters = window.app.navigation.getAllChapters();
+                if (Array.isArray(chapters) && chapters.length > 0) {
+                    // 返回章节ID列表，保持接口兼容性
+                    const chapterIds = chapters.map(chapter => 
+                        typeof chapter === 'string' ? chapter : chapter.id
+                    ).filter(id => id && typeof id === 'string');
+                    
+                    if (chapterIds.length > 0) {
+                        console.log(`✅ 从navigation.getAllChapters()获取到 ${chapterIds.length} 个章节`);
+                        return chapterIds;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('方法1失败:', error.message);
+        }
+        
+        // 🔧 优化方法2: 直接从chaptersMap获取完整数据
+        try {
+            if (window.app?.navigation?.state?.chaptersMap) {
+                const chaptersMap = window.app.navigation.state.chaptersMap;
+                if (chaptersMap.size > 0) {
+                    const chapterIds = Array.from(chaptersMap.keys()).filter(id => 
+                        id && typeof id === 'string' && id.trim().length > 0
+                    );
+                    
+                    if (chapterIds.length > 0) {
+                        console.log(`✅ 从navigation.chaptersMap获取到 ${chapterIds.length} 个章节`);
+                        return chapterIds;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('方法2失败:', error.message);
+        }
+        
+        // 🎯 方法3: 从navigation.json获取（保持原有逻辑）
+        try {
+            const response = await fetch('data/navigation.json', {
+                method: 'GET',
+                cache: 'no-store'
+            });
+            
+            if (response.ok) {
+                const navData = await response.json();
                 
-                if (chapters.length > 0) {
-                    console.log(`✅ 从navigation实例获取到 ${chapters.length} 个章节`);
-                    return chapters;
+                if (Array.isArray(navData) && navData.length > 0) {
+                    const allChapters = [];
+                    
+                    navData.forEach(series => {
+                        if (series && Array.isArray(series.chapters)) {
+                            series.chapters.forEach(chapter => {
+                                if (chapter && chapter.id && typeof chapter.id === 'string') {
+                                    allChapters.push(chapter.id);
+                                }
+                            });
+                        }
+                    });
+                    
+                    if (allChapters.length > 0) {
+                        const uniqueChapters = [...new Set(allChapters)];
+                        console.log(`✅ 从navigation.json获取到 ${uniqueChapters.length} 个唯一章节`);
+                        return uniqueChapters;
+                    }
                 }
             }
+        } catch (error) {
+            console.warn('方法3失败:', error.message);
         }
         
-        // 方法2：从navigation树中提取
-        if (window.app?.navigation?.state?.navigationTree) {
-            const chapters = [];
-            this.extractChaptersFromTree(window.app.navigation.state.navigationTree, chapters);
-            
-            if (chapters.length > 0) {
-                console.log(`✅ 从navigation树获取到 ${chapters.length} 个章节`);
-                return chapters;
-            }
-        }
-        
-        // 方法3：从原始navData获取
-        if (window.app?.navigation?.navData) {
-            const chapters = [];
-            this.extractChaptersFromNavData(window.app.navigation.navData, chapters);
-            
-            if (chapters.length > 0) {
-                console.log(`✅ 从navData获取到 ${chapters.length} 个章节`);
-                return chapters;
-            }
-        }
-        
-    } catch (error) {
-        console.warn('从navigation获取数据失败:', error.message);
+        // 🎯 方法4: 使用演示数据（保持原有逻辑）
+        console.warn('⚠️ 所有数据源检测失败，使用演示数据');
+        const demoChapters = this.generateDemoChapters();
+        await this.createDemoContent(demoChapters);
+        console.log(`✅ 创建了 ${demoChapters.length} 个演示章节`);
+        return demoChapters;
     }
-    
-    throw new Error('无法获取章节数据：navigation数据不可用');
-}
-// 🔧 新增：从导航树提取章节
-extractChaptersFromTree(nodes, chapters) {
-    if (!Array.isArray(nodes)) return;
-    
-    nodes.forEach(node => {
-        if (node.chapters && Array.isArray(node.chapters)) {
-            node.chapters.forEach(chapter => {
-                if (chapter.id) {
-                    chapters.push(chapter.id);
-                }
-            });
-        }
-        
-        if (node.children && Array.isArray(node.children)) {
-            this.extractChaptersFromTree(node.children, chapters);
-        }
-    });
-}
-
-// 🔧 新增：从原始数据提取章节
-extractChaptersFromNavData(navData, chapters) {
-    if (!Array.isArray(navData)) return;
-    
-    navData.forEach(series => {
-        if (series.chapters && Array.isArray(series.chapters)) {
-            series.chapters.forEach(chapter => {
-                if (chapter.id) {
-                    chapters.push(chapter.id);
-                }
-            });
-        }
-    });
-}
     
     // 🎯 生成演示章节
     generateDemoChapters() {
@@ -864,44 +1041,79 @@ extractChaptersFromNavData(navData, chapters) {
         }
     }
     
-    // 🎯 获取文章内容
-async getArticleContent(chapterId) {
-    // 🔧 修复：优先从navigation缓存获取
-    if (window.app?.navigation?.cache) {
-        const cachedContent = window.app.navigation.cache.get(chapterId);
-        if (cachedContent) {
-            const textContent = this.extractTextFromHTML(cachedContent);
-            const title = this.extractTitleFromHTML(cachedContent) || chapterId;
-            console.log(`✅ 从navigation缓存获取章节: ${chapterId}`);
-            return { content: textContent, title };
+    // 🔧 优化：统一内容获取机制，复用navigation逻辑
+    async getArticleContent(chapterId) {
+        // 🆕 优先通过navigation系统获取内容
+        const navResult = await this.getContentViaNavigation(chapterId);
+        if (navResult) {
+            return navResult;
         }
-    }
-    
-    // 🔧 修复：从chaptersMap获取章节信息和标题
-    if (window.app?.navigation?.state?.chaptersMap) {
-        const chapterData = window.app.navigation.state.chaptersMap.get(chapterId);
-        if (chapterData && chapterData.title) {
-            console.log(`✅ 从chaptersMap找到章节信息: ${chapterData.title}`);
-            // 如果有缓存内容就用缓存的，否则继续尝试其他方法
-        }
-    }
-    
-    // 尝试从缓存获取
-    const demoContent = sessionStorage.getItem(`demo_content_${chapterId}`);
-    if (demoContent) {
-        const textContent = this.extractTextFromHTML(demoContent);
-        const title = this.extractTitleFromHTML(demoContent) || chapterId;
-        return { content: textContent, title };
-    }
         
-        // 尝试从navigation缓存获取
-        if (window.app?.navigation?.cache) {
-            const cachedContent = window.app.navigation.cache.get(chapterId);
-            if (cachedContent) {
-                const textContent = this.extractTextFromHTML(cachedContent);
-                const title = this.extractTitleFromHTML(cachedContent) || chapterId;
-                return { content: textContent, title };
+        // 🔧 保持原有的备用逻辑
+        return await this.getContentFallback(chapterId);
+    }
+    
+    // 🆕 通过navigation系统获取内容（新增方法）
+    async getContentViaNavigation(chapterId) {
+        try {
+            // 检查navigation系统是否可用
+            if (!window.app?.navigation) {
+                return null;
             }
+            
+            // 获取章节数据
+            const chapterData = window.app.navigation.state?.chaptersMap?.get(chapterId);
+            if (!chapterData) {
+                return null;
+            }
+            
+            // 优先从navigation缓存获取
+            if (window.app.navigation.cache?.get) {
+                const cachedContent = window.app.navigation.cache.get(chapterId);
+                if (cachedContent) {
+                    const textContent = this.extractTextFromHTML(cachedContent);
+                    const title = this.extractTitleFromHTML(cachedContent) || chapterData.title;
+                    console.log(`✅ 从navigation缓存获取内容: ${chapterId}`);
+                    return { content: textContent, title };
+                }
+            }
+            
+            // 使用navigation的内容获取逻辑
+            if (typeof window.app.navigation.getContentUrl === 'function') {
+                const contentUrl = window.app.navigation.getContentUrl(chapterData);
+                if (contentUrl) {
+                    const response = await fetch(contentUrl);
+                    if (response.ok) {
+                        const htmlContent = await response.text();
+                        
+                        // 缓存到navigation系统
+                        if (window.app.navigation.cache?.set) {
+                            window.app.navigation.cache.set(chapterId, htmlContent);
+                        }
+                        
+                        const textContent = this.extractTextFromHTML(htmlContent);
+                        const title = this.extractTitleFromHTML(htmlContent) || chapterData.title;
+                        console.log(`✅ 通过navigation系统获取内容: ${chapterId}`);
+                        return { content: textContent, title };
+                    }
+                }
+            }
+            
+            return null;
+        } catch (error) {
+            console.warn(`通过navigation获取内容失败 ${chapterId}:`, error.message);
+            return null;
+        }
+    }
+    
+    // 🔧 备用内容获取逻辑（原有逻辑的精简版）
+    async getContentFallback(chapterId) {
+        // 尝试从演示内容获取
+        const demoContent = sessionStorage.getItem(`demo_content_${chapterId}`);
+        if (demoContent) {
+            const textContent = this.extractTextFromHTML(demoContent);
+            const title = this.extractTitleFromHTML(demoContent) || chapterId;
+            return { content: textContent, title };
         }
         
         // 尝试从文件获取
@@ -1037,12 +1249,12 @@ async getArticleContent(chapterId) {
         }
     }
     
-    // 🎯 缓存结果
+    // 🔧 优化：统一缓存保存策略
     cacheResults() {
         try {
             const cacheData = {
                 timestamp: Date.now(),
-                version: '1.0',
+                version: '2.0', // 🔧 优化：版本号更新
                 wordStats: Array.from(this.analyzer.wordStats.entries()),
                 articleContents: Array.from(this.analyzer.articleContents.entries()),
                 variantIndex: Array.from(this.analyzer.variantIndex.entries()).map(([k, v]) => [k, Array.from(v)]),
@@ -1050,16 +1262,25 @@ async getArticleContent(chapterId) {
                 dataSize: this.analyzer.wordStats.size
             };
             
-            if (this.cache) {
+            // 🔧 优化：优先保存到navigation缓存
+            if (this.cache && typeof this.cache.set === 'function') {
                 this.cache.set('fullAnalysis', cacheData);
-                console.log('💾 分析结果已缓存');
+                console.log('💾 分析结果已缓存到统一缓存系统');
+            }
+            
+            // 🔧 备用：保存到自有缓存
+            if (window.EnglishSite.CacheManager) {
+                const fallbackCache = window.EnglishSite.CacheManager.get('wordFreq');
+                if (fallbackCache && typeof fallbackCache.set === 'function') {
+                    fallbackCache.set('fullAnalysis', cacheData);
+                }
             }
         } catch (error) {
             console.warn('缓存保存失败:', error);
         }
     }
     
-    // 🎯 公共API方法
+    // 🎯 公共API方法（保持100%兼容）
     
     // 获取高频词
     getTopWords(limit = 100) {
@@ -1069,6 +1290,27 @@ async getArticleContent(chapterId) {
         } catch (error) {
             console.error('获取高频词失败:', error);
             return [];
+        }
+    }
+    
+    // 🆕 智能排序的公开API
+    getTopWordsSmart(limit = 100) {
+        try {
+            const words = this.analyzer.getWordFrequencyDataSmart();
+            return words.slice(0, limit);
+        } catch (error) {
+            console.error('获取智能排序词频失败:', error);
+            return [];
+        }
+    }
+    
+    // 🆕 章节难度计算的公开API
+    getArticleDifficulty(articleId) {
+        try {
+            return this.analyzer.calculateSmartArticleDifficulty(articleId);
+        } catch (error) {
+            console.error('计算章节难度失败:', error);
+            return { stars: 3, label: "⭐⭐⭐ 中等" };
         }
     }
     
@@ -1157,9 +1399,9 @@ async getArticleContent(chapterId) {
     }
 }
 
-// 🎯 导出到全局
+// 🎯 导出到全局（保持100%兼容）
 window.EnglishSite.WordFrequencyManager = SimplifiedWordFrequencyManager;
 window.EnglishSite.SimplifiedWordFrequencyAnalyzer = SimplifiedWordFrequencyAnalyzer;
 window.EnglishSite.SimplifiedWordStemmer = SimplifiedWordStemmer;
 
-console.log('📊 词频管理系统已加载（简化重构版v1.0）- 专注可用性和双模式搜索');
+console.log('📊 词频管理系统已加载（优化版v2.0）- 修复导航连接+性能优化');
