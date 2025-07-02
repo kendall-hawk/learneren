@@ -536,7 +536,7 @@ class App {
         window.addEventListener('beforeunload', () => this.destroy());
         window.addEventListener('resize', this.#throttle(() => this.#handleWindowResize(), 250));
     }
-
+     //🔧 新增：统一的容器查找逻辑
     #findWordFreqContainer() {
         console.log('[App] 🔍 查找词频容器...');
 
