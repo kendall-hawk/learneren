@@ -20,7 +20,7 @@ class App {
         this.navigation = null;
         this.glossaryManager = null;
         this.audioSyncManager = null;
-        
+
         // 🔧 修复：统一词频管理器实例管理
         this.wordFreqManager = null;
         this.wordFreqManagerPromise = null; // 新增：管理初始化Promise
@@ -225,14 +225,14 @@ class App {
 
             // 🔧 修复核心：串行初始化，确保导航系统完全就绪
             console.log('[App] 🔧 开始串行初始化 - 确保时序正确');
-            
+
             // 1. 先初始化事件监听器（不依赖其他模块）
             this.#addEventListeners();
-            
+
             // 2. 等待导航系统完全初始化完成
             console.log('[App] 📍 第1步：初始化导航系统...');
             await this.#initializeNavigation();
-            
+
             // 3. 验证导航系统状态
             const navReady = this.#verifyNavigationReady();
             if (!navReady) {
@@ -240,7 +240,7 @@ class App {
             } else {
                 console.log('[App] ✅ 导航系统已就绪，chaptersMap大小:', this.navigation?.state?.chaptersMap?.size || 0);
             }
-            
+
             // 4. 导航就绪后，创建统一的词频管理器实例
             console.log('[App] 📍 第2步：导航就绪，创建统一词频管理器...');
             await this.#createUnifiedWordFreqManager();
@@ -314,10 +314,10 @@ class App {
             // 🔧 核心修复：创建统一实例，避免冲突
             if (!this.wordFreqManager) {
                 this.wordFreqManager = new window.EnglishSite.WordFrequencyManager(navigationState);
-                
+
                 // 🔧 关键修复：立即暴露到全局，防止重复创建
                 window.wordFreqManager = this.wordFreqManager;
-                
+
                 console.log('[App] ✅ 统一词频管理器实例已创建并暴露到全局');
             }
 
@@ -328,10 +328,10 @@ class App {
                     this.state.wordFreqError = null;
                     this.#setLoadingState('wordFreq', true);
                     console.log('[App] ✅ 词频管理器初始化完成');
-                    
+
                     // 🔧 修复：确保全局访问
                     window.app.wordFreqManager = this.wordFreqManager;
-                    
+
                     return true;
                 }).catch(error => {
                     this.state.wordFreqInitialized = false;
@@ -441,13 +441,13 @@ class App {
             // 🔧 额外等待确保章节映射完成
             let retryCount = 0;
             const maxRetries = 10;
-            
+
             while (retryCount < maxRetries) {
                 if (this.navigation.state?.chaptersMap?.size > 0) {
                     console.log(`[App] ✅ 导航章节映射已完成: ${this.navigation.state.chaptersMap.size} 个章节`);
                     break;
                 }
-                
+
                 console.log(`[App] ⏳ 等待章节映射完成... (第${retryCount + 1}次检查)`);
                 await new Promise(resolve => setTimeout(resolve, 100));
                 retryCount++;
@@ -537,13 +537,51 @@ class App {
         window.addEventListener('resize', this.#throttle(() => this.#handleWindowResize(), 250));
     }
 
+    #findWordFreqContainer() {
+        console.log('[App] 🔍 查找词频容器...');
+
+        // 优先级排序的容器查找策略
+        const containerSelectors = [
+            '#word-frequency-container',
+            '#content',
+            'main',
+            '.main-content'
+        ];
+
+        for (const selector of containerSelectors) {
+            const container = document.querySelector(selector);
+            if (container) {
+                console.log(`[App] ✅ 找到容器: ${selector}`);
+                return container;
+            }
+        }
+
+        console.warn('[App] ⚠️ 未找到预定义容器，尝试创建');
+
+        // 尝试创建容器
+        try {
+            const container = document.createElement('div');
+            container.id = 'word-frequency-container';
+            container.style.cssText = 'width: 100%; height: 100%;';
+
+            const contentArea = this.elements.content || document.body;
+            contentArea.appendChild(container);
+
+            console.log('[App] ✅ 已创建新的词频容器');
+            return container;
+        } catch (error) {
+            console.error('[App] ❌ 创建容器失败:', error);
+            return null;
+        }
+    }
+
     // 🔧 核心修复：词频工具请求处理
     #onWordFrequencyRequested(e) {
         console.log('[App] 🔤 处理词频工具请求');
-        
+
         try {
             this.#cleanupModules();
-            
+
             // 🔧 修复：使用统一的词频启动逻辑
             this.#launchWordFrequencyTool().then(success => {
                 if (success) {
@@ -556,7 +594,7 @@ class App {
                 console.error('[App] ❌ 词频工具启动失败:', error);
                 this.#handleWordFrequencyError(error);
             });
-            
+
         } catch (error) {
             console.error('[App] ❌ 词频工具启动异常:', error);
             this.#handleWordFrequencyError(error);
@@ -566,18 +604,18 @@ class App {
     // 🔧 新增：统一词频工具启动逻辑
     async #launchWordFrequencyTool() {
         console.log('[App] 🚀 启动统一词频工具...');
-        
+
         try {
             // 🔧 修复：确保容器存在
             const container = this.#findOrCreateWordFreqContainer();
             if (!container) {
                 throw new Error('无法找到或创建词频容器');
             }
-            
+
             // 🔧 修复：确保词频管理器已准备就绪
             if (!this.state.wordFreqInitialized) {
                 console.log('[App] ⏳ 等待词频管理器初始化...');
-                
+
                 if (this.wordFreqManagerPromise) {
                     const initResult = await this.wordFreqManagerPromise;
                     if (!initResult) {
@@ -587,33 +625,33 @@ class App {
                     throw new Error('词频管理器未创建');
                 }
             }
-            
+
             // 🔧 修复：清空容器并启动UI
             container.innerHTML = '';
-            
+
             // 🔧 关键修复：使用已存在的统一实例
             const manager = this.wordFreqManager || window.wordFreqManager;
             if (!manager) {
                 throw new Error('词频管理器实例不存在');
             }
-            
+
             // 创建UI（如果尚未存在）
             if (!window.wordFreqUI || window.wordFreqUI.container !== container) {
                 console.log('[App] 📱 创建词频UI...');
-                
+
                 if (window.EnglishSite.WordFrequencyUI) {
                     window.wordFreqUI = new window.EnglishSite.WordFrequencyUI(container, manager);
-                    
+
                     // 等待UI初始化
                     await window.wordFreqUI.initialize();
                 } else {
                     throw new Error('词频UI类不可用');
                 }
             }
-            
+
             console.log('[App] ✅ 统一词频工具启动完成');
             return true;
-            
+
         } catch (error) {
             console.error('[App] ❌ 统一词频工具启动失败:', error);
             return false;
@@ -625,12 +663,12 @@ class App {
         // 按优先级查找容器
         const selectors = [
             '#word-frequency-container',
-            '.word-freq-container', 
+            '.word-freq-container',
             '#content',
             'main',
             'body'
         ];
-        
+
         for (const selector of selectors) {
             const container = document.querySelector(selector);
             if (container) {
@@ -638,7 +676,7 @@ class App {
                 return container;
             }
         }
-        
+
         // 如果都找不到，创建一个
         console.log('[App] 📦 创建新的词频容器');
         const container = document.createElement('div');
@@ -677,10 +715,10 @@ class App {
             // 重置状态
             this.state.wordFreqInitialized = false;
             this.state.wordFreqError = null;
-            
+
             // 重新创建词频管理器
             await this.#createUnifiedWordFreqManager();
-            
+
             // 重新启动工具
             const success = await this.#launchWordFrequencyTool();
             if (success) {
@@ -798,7 +836,7 @@ class App {
             this.#showNoContentMessage();
         }
     }
-    
+
     // 🚀 核心：无限递归章节提取器
     #extractAllChaptersRecursive(data, parentPath = [], level = 0) {
         if (!data) {
@@ -1501,7 +1539,10 @@ class App {
         wrapper.className = 'chapter-overview-item';
 
         // 🚀 使用缓存的屏幕信息
-        const { isMobile, isTablet } = this.state.screenInfo;
+        const {
+            isMobile,
+            isTablet
+        } = this.state.screenInfo;
 
         // 🔍 智能检测缩略图是否可用
         const hasThumbnail = this.#hasValidThumbnail(chapter);
@@ -1644,21 +1685,24 @@ class App {
                     console.warn('智能难度计算失败，使用默认值:', error);
                 }
             }
-            
+
             // 降级方案：基于章节ID或标题长度的简单推断
             const titleLength = chapter.title?.length || 30;
             let stars;
             if (titleLength < 25) stars = 2;
             else if (titleLength < 40) stars = 3;
             else stars = 4;
-            
-            return { 
-                stars, 
-                tooltip: "智能分析中，当前为预估难度" 
+
+            return {
+                stars,
+                tooltip: "智能分析中，当前为预估难度"
             };
         };
 
-        const { stars, tooltip } = getDifficulty();
+        const {
+            stars,
+            tooltip
+        } = getDifficulty();
 
         // 星星难度（智能计算）
         const difficultyTag = document.createElement('span');
@@ -1730,7 +1774,7 @@ class App {
         const addHoverEffect = () => {
             wrapper.style.backgroundColor = '#fafafa';
             title.style.color = '#1a73e8';
-            
+
             // 只有在有缩略图时才应用图片悬停效果
             if (hasThumbnail) {
                 const thumbnail = wrapper.querySelector('.chapter-thumbnail');
@@ -1743,7 +1787,7 @@ class App {
         const removeHoverEffect = () => {
             wrapper.style.backgroundColor = 'transparent';
             title.style.color = '#1a1a1a';
-            
+
             // 只有在有缩略图时才重置图片效果
             if (hasThumbnail) {
                 const thumbnail = wrapper.querySelector('.chapter-thumbnail');
@@ -1825,11 +1869,15 @@ class App {
 
         thumbnail.addEventListener('error', () => {
             this.#handleThumbnailError(imageContainer, thumbnail);
-        }, { once: true });
+        }, {
+            once: true
+        });
 
         thumbnail.addEventListener('load', () => {
             thumbnail.style.opacity = '1';
-        }, { once: true });
+        }, {
+            once: true
+        });
 
         thumbnail.style.opacity = '0.8';
 
@@ -1840,7 +1888,7 @@ class App {
     // 🔧 缩略图加载错误处理
     #handleThumbnailError(container, thumbnail) {
         console.warn('[App] 缩略图加载失败:', thumbnail.src);
-        
+
         const placeholder = document.createElement('div');
         placeholder.style.cssText = `
             width: 100% !important;
@@ -1941,7 +1989,7 @@ class App {
             if (window.app === this) {
                 delete window.app;
             }
-            
+
             // 🔧 清理词频全局引用
             if (window.wordFreqManager === this.wordFreqManager) {
                 delete window.wordFreqManager;
