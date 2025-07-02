@@ -1,4 +1,4 @@
-// js/word-frequency.js - 核心优化版 v2.0 (集成+修复+性能优化)
+// js/word-frequency.js - 核心优化版 v2.0 (集成+修复+性能优化) - 时序冲突修复版
 window.EnglishSite = window.EnglishSite || {};
 
 // 🛡️ 兼容性检测 - 安全使用新核心基础设施
@@ -747,9 +747,9 @@ class SimplifiedWordFrequencyAnalyzer {
     }
 }
 
-// 🎯 词频管理器 - 集成版
+// 🎯 词频管理器 - 时序冲突修复版
 class SimplifiedWordFrequencyManager {
-    constructor() {
+    constructor(navigationState = null) {
         this.analyzer = new SimplifiedWordFrequencyAnalyzer();
         this.isInitialized = false;
         this.isInitializing = false;
@@ -757,15 +757,18 @@ class SimplifiedWordFrequencyManager {
         this.processedArticles = new Set();
         this.processingProgress = 0;
         
+        // 🔧 修复：保存导航状态
+        this.navigationState = navigationState;
+        
         // 🛡️ 智能缓存
         this.cache = CompatibilityLayer.safeCreateCache('wordFreq', 100, 3600000);
         
-        console.log('✅ 词频管理器已创建');
+        console.log('✅ 词频管理器已创建', navigationState ? '(接收到导航状态)' : '(无导航状态)');
         
-        // 🎯 自动初始化
+        // 🎯 延迟自动初始化，给导航系统更多时间
         setTimeout(() => {
             this.startInitialization();
-        }, 0);
+        }, 100); // 增加延迟时间
     }
     
     async startInitialization() {
@@ -867,30 +870,29 @@ class SimplifiedWordFrequencyManager {
         }
     }
     
+    // 🔧 修复：增加导航就绪检测和重试机制的getAllChapters
     async getAllChapters() {
         console.log('📋 获取文章列表...');
         
-        // 方法1: 检查navigation实例
+        // 🔧 方法1: 智能检测Navigation系统就绪状态（增加重试机制）
         try {
-            if (window.app?.navigation?.state?.chaptersMap) {
-                const chaptersMap = window.app.navigation.state.chaptersMap;
-                if (chaptersMap.size > 0) {
-                    const chapters = Array.from(chaptersMap.keys()).filter(id => 
-                        id && typeof id === 'string' && id.trim().length > 0
-                    );
-                    
-                    if (chapters.length > 0) {
-                        console.log(`✅ 从navigation获取到 ${chapters.length} 个章节`);
-                        return chapters;
-                    }
-                }
+            console.log('🔧 方法1：尝试从Navigation系统获取章节...');
+            
+            const chapters = await this.getChaptersFromNavigation();
+            if (chapters && chapters.length > 0) {
+                console.log(`✅ 从Navigation系统获取到 ${chapters.length} 个章节`);
+                return chapters;
+            } else {
+                console.warn('⚠️ Navigation系统返回空章节列表');
             }
         } catch (error) {
-            console.warn('方法1失败:', error.message);
+            console.warn('❌ 方法1失败:', error.message);
         }
         
-        // 方法2: 从navigation.json获取
+        // 方法2: 从navigation.json获取（保持原有逻辑）
         try {
+            console.log('🔧 方法2：尝试从navigation.json获取章节...');
+            
             const response = await fetch('data/navigation.json', {
                 method: 'GET',
                 cache: 'no-store'
@@ -920,15 +922,82 @@ class SimplifiedWordFrequencyManager {
                 }
             }
         } catch (error) {
-            console.warn('方法2失败:', error.message);
+            console.warn('❌ 方法2失败:', error.message);
         }
         
-        // 方法3: 使用演示数据
+        // 方法3: 使用演示数据（最后备选）
         console.warn('⚠️ 所有数据源检测失败，使用演示数据');
         const demoChapters = this.generateDemoChapters();
         await this.createDemoContent(demoChapters);
         console.log(`✅ 创建了 ${demoChapters.length} 个演示章节`);
         return demoChapters;
+    }
+    
+    // 🔧 新增：智能获取Navigation系统章节（重试机制）
+    async getChaptersFromNavigation() {
+        const maxRetries = 20; // 增加重试次数
+        const retryInterval = 200; // 重试间隔
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`📍 第${attempt}次尝试获取Navigation章节...`);
+                
+                // 🔧 优先使用构造函数传入的导航状态
+                if (this.navigationState?.available && this.navigationState?.chaptersMap) {
+                    const chaptersMap = this.navigationState.chaptersMap;
+                    if (chaptersMap.size > 0) {
+                        const chapters = Array.from(chaptersMap.keys()).filter(id => 
+                            id && typeof id === 'string' && id.trim().length > 0
+                        );
+                        
+                        if (chapters.length > 0) {
+                            console.log(`✅ 从构造函数导航状态获取到 ${chapters.length} 个章节 (第${attempt}次尝试)`);
+                            return chapters;
+                        }
+                    }
+                }
+                
+                // 🔧 检查全局window.app.navigation状态
+                if (window.app?.navigation?.state?.chaptersMap) {
+                    const chaptersMap = window.app.navigation.state.chaptersMap;
+                    const chaptersCount = chaptersMap.size;
+                    
+                    console.log(`📊 Navigation状态检查 (第${attempt}次): chaptersMap.size = ${chaptersCount}`);
+                    
+                    if (chaptersCount > 0) {
+                        const chapters = Array.from(chaptersMap.keys()).filter(id => 
+                            id && typeof id === 'string' && id.trim().length > 0
+                        );
+                        
+                        if (chapters.length > 0) {
+                            console.log(`✅ 从window.app.navigation获取到 ${chapters.length} 个章节 (第${attempt}次尝试)`);
+                            return chapters;
+                        }
+                    } else if (attempt < maxRetries) {
+                        // chaptersMap为空，继续重试
+                        console.log(`⏳ chaptersMap为空，等待${retryInterval}ms后重试...`);
+                        await this.sleep(retryInterval);
+                        continue;
+                    }
+                } else {
+                    console.log(`⏳ Navigation系统尚未就绪 (第${attempt}次)，继续等待...`);
+                    if (attempt < maxRetries) {
+                        await this.sleep(retryInterval);
+                        continue;
+                    }
+                }
+                
+            } catch (error) {
+                console.warn(`❌ 第${attempt}次获取Navigation章节失败:`, error.message);
+                if (attempt < maxRetries) {
+                    await this.sleep(retryInterval);
+                    continue;
+                }
+            }
+        }
+        
+        console.warn(`⚠️ Navigation章节获取失败：尝试了${maxRetries}次仍未成功`);
+        throw new Error(`Navigation系统在${maxRetries}次重试后仍未就绪`);
     }
     
     generateDemoChapters() {
@@ -1246,6 +1315,7 @@ class SimplifiedWordFrequencyManager {
             this.isInitialized = false;
             this.isInitializing = false;
             this.initializationError = null;
+            this.navigationState = null; // 🔧 清理导航状态
             
             console.log('✅ 词频管理器销毁完成');
         } catch (error) {
@@ -1394,7 +1464,9 @@ class SimplifiedSearchManager {
         console.error('🚨 搜索错误:', error);
         
         this.container.dispatchEvent(new CustomEvent('searchError', {
-            detail: { error: error.message }
+            detail: {
+                error: error.message
+            }
         }));
     }
     
@@ -1414,7 +1486,10 @@ class SimplifiedSearchManager {
         }
         
         this.container.dispatchEvent(new CustomEvent('searchModeChanged', {
-            detail: { oldMode, newMode }
+            detail: {
+                oldMode,
+                newMode
+            }
         }));
     }
     
@@ -1446,7 +1521,9 @@ class SimplifiedSearchManager {
     }
     
     getState() {
-        return { ...this.state };
+        return {
+            ...this.state
+        };
     }
     
     destroy() {
@@ -2519,10 +2596,13 @@ class WordFrequencyUI {
                 </button>
             </div>
         `;
-            display.style.display = 'block';
+        // 从 display.style 处继续补全
+
+.display = 'block';
         }
     }
 
+    // 其他必要方法（保持简化）
     initializeVirtualScroll() {
         const container = this.getElement('#virtual-container');
         if (!container) return;
@@ -2537,9 +2617,14 @@ class WordFrequencyUI {
     }
 
     handleVirtualScroll(e) {
+        // 简化的虚拟滚动处理
+        // 在搜索状态下不使用虚拟滚动
         if (this.searchManager.getState().hasResults) {
             return;
         }
+
+        // 正常浏览状态的虚拟滚动逻辑
+        // 这里可以根据需要实现具体的虚拟滚动逻辑
     }
 
     updateStatsSummary() {
@@ -2623,16 +2708,20 @@ class WordFrequencyUI {
         console.log('🧹 开始销毁 WordFrequencyUI...');
 
         try {
+            // 销毁搜索管理器
             if (this.searchManager) {
                 this.searchManager.destroy();
             }
 
+            // 清理缓存
             this.domCache.clear();
             this.dataCache.clear();
 
+            // 移除样式
             const styleEl = document.getElementById('word-freq-styles');
             if (styleEl) styleEl.remove();
 
+            // 清空引用
             this.container = null;
             this.manager = null;
             this.currentWordsData = null;
@@ -2651,120 +2740,21 @@ class WordFrequencyUI {
         const style = document.createElement('style');
         style.id = 'word-freq-styles';
         style.textContent = `
-            .word-freq-page, .word-freq-tool { 
-                padding: 20px; 
-                max-width: 1400px; 
-                margin: 0 auto; 
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-                background: #f8f9fa; 
-                min-height: 100vh; 
-            }
-            .word-freq-tool { 
-                background: white; 
-                border-radius: 12px; 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
-                padding: 24px; 
-                min-height: 80vh; 
-            }
-            .word-freq-header { 
-                margin-bottom: 30px; 
-                border-bottom: 2px solid #e9ecef; 
-                padding-bottom: 20px; 
-                background: white; 
-                border-radius: 12px; 
-                padding: 24px; 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
-            }
-            .word-freq-tool .word-freq-header { 
-                background: transparent; 
-                box-shadow: none; 
-                border-bottom: 1px solid #e9ecef; 
-                margin-bottom: 20px; 
-                padding: 0 0 20px 0; 
-            }
-            .header-title h1 { 
-                margin: 0 0 16px 0; 
-                color: #2c3e50; 
-                font-size: 2.2rem; 
-                font-weight: 700; 
-            }
-            .word-freq-tool .header-title h1 { 
-                font-size: 1.8rem; 
-            }
-            .stats-summary { 
-                display: flex; 
-                gap: 16px; 
-                flex-wrap: wrap; 
-                margin-bottom: 20px; 
-            }
-            .stat-item { 
-                background: linear-gradient(135deg, #007bff15, #007bff05); 
-                padding: 12px 16px; 
-                border-radius: 20px; 
-                font-size: 0.9rem; 
-                color: #495057; 
-                border: 2px solid #007bff20; 
-                font-weight: 600; 
-                transition: all 0.3s ease; 
-            }
-            .stat-item:hover { 
-                transform: translateY(-1px); 
-                box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15); 
-            }
-            .word-freq-controls { 
-                display: flex; 
-                gap: 24px; 
-                align-items: flex-start; 
-                flex-wrap: wrap; 
-                margin-top: 20px; 
-            }
-            .search-section { 
-                flex: 1; 
-                min-width: 300px; 
-            }
-            .search-box { 
-                display: flex; 
-                gap: 8px; 
-                margin-bottom: 12px; 
-            }
-            .search-box input { 
-                flex: 1; 
-                padding: 12px 20px; 
-                border: 2px solid #dee2e6; 
-                border-radius: 25px; 
-                font-size: 14px; 
-                outline: none; 
-                transition: all 0.3s ease; 
-                background: white; 
-            }
-            .search-box input:focus { 
-                border-color: #007bff; 
-                box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.1); 
-                transform: translateY(-1px); 
-            }
-            .search-box button { 
-                padding: 12px 18px; 
-                border: none; 
-                border-radius: 20px; 
-                background: linear-gradient(135deg, #007bff, #0056b3); 
-                color: white; 
-                cursor: pointer; 
-                transition: all 0.3s ease; 
-                font-size: 14px; 
-                min-width: 48px; 
-                font-weight: 600; 
-            }
-            .search-box button:hover { 
-                background: linear-gradient(135deg, #0056b3, #004085); 
-                transform: translateY(-2px); 
-                box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3); 
-            }
-            #clear-search { 
-                background: linear-gradient(135deg, #6c757d, #5a6268) !important; 
-            }
-            #clear-search:hover { 
-                background: linear-gradient(135deg, #5a6268, #495057) !important; 
-            }
+            .word-freq-page { padding: 20px; max-width: 1400px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8f9fa; min-height: 100vh; }
+            .word-freq-header { margin-bottom: 30px; border-bottom: 2px solid #e9ecef; padding-bottom: 20px; background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+            .header-title h1 { margin: 0 0 16px 0; color: #2c3e50; font-size: 2.2rem; font-weight: 700; }
+            .stats-summary { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+            .stat-item { background: linear-gradient(135deg, #007bff15, #007bff05); padding: 12px 16px; border-radius: 20px; font-size: 0.9rem; color: #495057; border: 2px solid #007bff20; font-weight: 600; transition: all 0.3s ease; }
+            .stat-item:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15); }
+            .word-freq-controls { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin-top: 20px; }
+            .search-section { flex: 1; min-width: 300px; }
+            .search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+            .search-box input { flex: 1; padding: 12px 20px; border: 2px solid #dee2e6; border-radius: 25px; font-size: 14px; outline: none; transition: all 0.3s ease; background: white; }
+            .search-box input:focus { border-color: #007bff; box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.1); transform: translateY(-1px); }
+            .search-box button { padding: 12px 18px; border: none; border-radius: 20px; background: linear-gradient(135deg, #007bff, #0056b3); color: white; cursor: pointer; transition: all 0.3s ease; font-size: 14px; min-width: 48px; font-weight: 600; }
+            .search-box button:hover { background: linear-gradient(135deg, #0056b3, #004085); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3); }
+            #clear-search { background: linear-gradient(135deg, #6c757d, #5a6268) !important; }
+            #clear-search:hover { background: linear-gradient(135deg, #5a6268, #495057) !important; }
             
             .search-mode-tabs { 
                 display: flex; 
@@ -2814,172 +2804,50 @@ class WordFrequencyUI {
             .search-status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
             
             .view-section .view-toggles { display: flex; gap: 8px; }
-            .view-btn { 
-                padding: 12px 20px; 
-                border: 2px solid #dee2e6; 
-                border-radius: 25px; 
-                background: white; 
-                cursor: pointer; 
-                transition: all 0.3s ease; 
-                font-size: 14px; 
-                font-weight: 600; 
-                color: #6c757d; 
-            }
-            .view-btn.active { 
-                background: linear-gradient(135deg, #28a745, #20c997); 
-                color: white; 
-                border-color: #28a745; 
-                box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); 
-                transform: translateY(-1px); 
-            }
-            .view-btn:not(.active):hover { 
-                background: #f8f9fa; 
-                border-color: #adb5bd; 
-                transform: translateY(-1px); 
-            }
+            .view-btn { padding: 12px 20px; border: 2px solid #dee2e6; border-radius: 25px; background: white; cursor: pointer; transition: all 0.3s ease; font-size: 14px; font-weight: 600; color: #6c757d; }
+            .view-btn.active { background: linear-gradient(135deg, #28a745, #20c997); color: white; border-color: #28a745; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); transform: translateY(-1px); }
+            .view-btn:not(.active):hover { background: #f8f9fa; border-color: #adb5bd; transform: translateY(-1px); }
             
-            .filter-section select { 
-                padding: 12px 16px; 
-                border: 2px solid #dee2e6; 
-                border-radius: 25px; 
-                background: white; 
-                font-size: 14px; 
-                color: #495057; 
-                cursor: pointer; 
-                transition: all 0.3s ease; 
-                font-weight: 600; 
-            }
-            .filter-section select:focus { 
-                outline: none; 
-                border-color: #007bff; 
-                box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.1); 
-            }
+            .filter-section select { padding: 12px 16px; border: 2px solid #dee2e6; border-radius: 25px; background: white; font-size: 14px; color: #495057; cursor: pointer; transition: all 0.3s ease; font-weight: 600; }
+            .filter-section select:focus { outline: none; border-color: #007bff; box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.1); }
             
-            .word-freq-content { 
-                background: white; 
-                border-radius: 12px; 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
-                min-height: 600px; 
-            }
-            .word-freq-tool .word-freq-content { 
-                background: transparent; 
-                box-shadow: none; 
-            }
+            .word-freq-content { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); min-height: 600px; }
             
-            .loading-section { 
-                display: flex; 
-                align-items: center; 
-                justify-content: center; 
-                height: 500px; 
-                background: linear-gradient(135deg, #f8f9fa, #ffffff); 
-                border-radius: 12px; 
-            }
+            .loading-section { display: flex; align-items: center; justify-content: center; height: 500px; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-radius: 12px; }
             .loading-indicator { text-align: center; padding: 40px; }
-            .spinner { 
-                width: 48px; 
-                height: 48px; 
-                border: 4px solid #f3f4f6; 
-                border-top: 4px solid #007bff; 
-                border-radius: 50%; 
-                animation: spin 1s linear infinite; 
-                margin: 0 auto 20px; 
-            }
+            .spinner { width: 48px; height: 48px; border: 4px solid #f3f4f6; border-top: 4px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
             @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-            .loading-text { 
-                font-size: 18px; 
-                font-weight: 600; 
-                color: #2c3e50; 
-                margin-bottom: 20px; 
-            }
+            .loading-text { font-size: 18px; font-weight: 600; color: #2c3e50; margin-bottom: 20px; }
             .progress-container { margin: 20px 0; }
-            .progress-bar { 
-                width: 300px; 
-                height: 8px; 
-                background: #e9ecef; 
-                border-radius: 10px; 
-                overflow: hidden; 
-                margin: 0 auto; 
-            }
-            .progress-fill { 
-                height: 100%; 
-                background: linear-gradient(90deg, #007bff, #28a745); 
-                transition: width 0.3s ease; 
-                border-radius: 10px; 
-            }
-            .progress-text { 
-                margin-top: 12px; 
-                font-size: 14px; 
-                color: #6c757d; 
-                font-weight: 600; 
-            }
-            .loading-tips { 
-                margin-top: 24px; 
-                color: #6c757d; 
-                font-size: 13px; 
-                line-height: 1.4; 
-                max-width: 300px; 
-            }
+            .progress-bar { width: 300px; height: 8px; background: #e9ecef; border-radius: 10px; overflow: hidden; margin: 0 auto; }
+            .progress-fill { height: 100%; background: linear-gradient(90deg, #007bff, #28a745); transition: width 0.3s ease; border-radius: 10px; }
+            .progress-text { margin-top: 12px; font-size: 14px; color: #6c757d; font-weight: 600; }
+            .loading-tips { margin-top: 24px; color: #6c757d; font-size: 13px; line-height: 1.4; max-width: 300px; }
             
             .word-freq-display { padding: 20px; }
-            .word-freq-tool .word-freq-display { padding: 10px; }
-            .virtual-scroll-container { 
-                border-radius: 8px; 
-                overflow: hidden; 
-                background: #f8f9fa; 
-            }
+            .virtual-scroll-container { border-radius: 8px; overflow: hidden; background: #f8f9fa; }
             .virtual-scroll-content { position: relative; }
             
-            .search-results-wrapper { 
-                background: white; 
-                border-radius: 8px; 
-                overflow: hidden; 
-            }
-            .search-word-cloud .word-item:hover { 
-                transform: scale(1.05) translateY(-2px); 
-            }
-            .search-word-list .word-list-item:hover { 
-                border-color: #007bff; 
-            }
+            .search-results-wrapper { background: white; border-radius: 8px; overflow: hidden; }
+            .search-word-cloud .word-item:hover { transform: scale(1.05) translateY(-2px); }
+            .search-word-list .word-list-item:hover { border-color: #007bff; }
             
-            .word-item { 
-                display: inline-block; 
-                transition: all 0.2s ease; 
-            }
-            .word-item:hover { 
-                transform: scale(1.05); 
-                background: rgba(0, 123, 255, 0.15) !important; 
-            }
+            .word-item { display: inline-block; transition: all 0.2s ease; }
+            .word-item:hover { transform: scale(1.05); background: rgba(0, 123, 255, 0.15) !important; }
             
-            .word-list-item:hover { 
-                transform: translateY(-1px); 
-                box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15); 
-                border-color: #007bff; 
-            }
+            .word-list-item:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 123, 255, 0.15); border-color: #007bff; }
             
-            .word-details-panel { 
-                padding: 20px; 
-                background: #f8f9fa; 
-                border-radius: 12px; 
-                margin-top: 20px; 
-            }
-            .article-item:hover .click-hint { 
-                opacity: 1 !important; 
-            }
+            .word-details-panel { padding: 20px; background: #f8f9fa; border-radius: 12px; margin-top: 20px; }
+            .article-item:hover .click-hint { opacity: 1 !important; }
             
-            .no-results { 
-                animation: fadeIn 0.5s ease-out; 
-            }
-            @keyframes fadeIn { 
-                from { opacity: 0; transform: translateY(20px); } 
-                to { opacity: 1; transform: translateY(0); } 
-            }
+            .no-results { animation: fadeIn 0.5s ease-out; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
             
             /* 移动端优化 */
             @media (max-width: 768px) {
-                .word-freq-page, .word-freq-tool { padding: 12px; }
+                .word-freq-page { padding: 12px; }
                 .word-freq-header { padding: 16px; }
                 .header-title h1 { font-size: 1.8rem; }
-                .word-freq-tool .header-title h1 { font-size: 1.5rem; }
                 .word-freq-controls { flex-direction: column; gap: 16px; }
                 .search-section { min-width: auto; }
                 .stats-summary { gap: 12px; }
@@ -3139,4 +3007,4 @@ window.searchWords = function(query, mode = 'intelligent') {
     }
 };
 
-console.log('📊 词频系统已加载（集成优化版v2.0）- 支持独立+集成双模式运行');
+console.log('📊 词频系统已加载（时序冲突修复版v2.0）- 支持独立+集成双模式运行');
