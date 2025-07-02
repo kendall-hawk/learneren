@@ -6,7 +6,7 @@
   "description": "分析全站词汇使用频率",
   "icon": "🔤",
   "action": "wordFrequency"
-}
+},
   {
     "id": "all-articles",
     "series": "所有文章",
