@@ -1,4 +1,4 @@
-// js/main.js - 超级优化版本，性能提升50%
+// js/main.js - 词频集成版 (在原有基础上添加词频功能)
 window.EnglishSite = window.EnglishSite || {};
 
 class App {
@@ -20,6 +20,9 @@ class App {
         this.navigation = null;
         this.glossaryManager = null;
         this.audioSyncManager = null;
+        
+        // 🎯 新增：词频管理器
+        this.wordFreqManager = null;
 
         // 🚀 优化：状态管理（减少重复计算）
         this.state = {
@@ -142,7 +145,7 @@ class App {
 
     // 🚀 优化：加载状态管理（简化）
     #initializeLoadingStates() {
-        ['navigation', 'glossary', 'audioSync'].forEach(state => {
+        ['navigation', 'glossary', 'audioSync', 'wordFreq'].forEach(state => {
             this.state.loading.set(state, {
                 loaded: false,
                 error: null
@@ -216,10 +219,11 @@ class App {
                 await this.#loadNavigationData();
             }
 
-            // 🚀 优化：并行初始化
+            // 🚀 优化：并行初始化（包含词频管理器）
             await Promise.all([
                 this.#addEventListeners(),
-                this.#initializeNavigation()
+                this.#initializeNavigation(),
+                this.#initializeWordFrequency() // 🎯 新增词频管理器初始化
             ]);
 
             this.#hideLoadingIndicator();
@@ -231,6 +235,46 @@ class App {
         } catch (error) {
             this.#hideLoadingIndicator();
             throw error;
+        }
+    }
+
+    // 🎯 新增：初始化词频管理器
+    async #initializeWordFrequency() {
+        const perfId = window.EnglishSite.PerformanceMonitor?.startMeasure('init-word-freq', 'module');
+
+        try {
+            console.log('[App] 🔤 开始初始化词频管理器...');
+
+            // 检查词频类是否可用
+            if (!window.EnglishSite.WordFrequencyManager) {
+                console.warn('[App] ⚠️ 词频管理器类未找到，跳过初始化');
+                this.#setLoadingState('wordFreq', false, new Error('WordFrequencyManager not found'));
+                return;
+            }
+
+            // 创建词频管理器实例
+            this.wordFreqManager = new window.EnglishSite.WordFrequencyManager();
+
+            // 等待初始化完成（非阻塞）
+            this.wordFreqManager.waitForReady().then(() => {
+                this.#setLoadingState('wordFreq', true);
+                console.log('[App] ✅ 词频管理器初始化完成');
+                
+                // 🎯 暴露到全局，供其他模块使用
+                window.app.wordFreqManager = this.wordFreqManager;
+                
+            }).catch(error => {
+                this.#setLoadingState('wordFreq', false, error);
+                console.warn('[App] ⚠️ 词频管理器初始化失败:', error.message);
+            });
+
+            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+
+        } catch (error) {
+            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+            this.#setLoadingState('wordFreq', false, error);
+            this.#handleError('init-word-frequency', error);
+            console.warn('[App] ⚠️ 词频管理器初始化异常:', error.message);
         }
     }
 
@@ -342,6 +386,11 @@ class App {
             {
                 name: 'navigationUpdated',
                 handler: (e) => this.#onNavigationUpdated(e)
+            },
+            // 🎯 新增：词频工具事件
+            {
+                name: 'wordFrequencyRequested',
+                handler: (e) => this.#onWordFrequencyRequested(e)
             }
         ];
 
@@ -363,6 +412,54 @@ class App {
         // 🚀 优化：窗口事件（合并处理）
         window.addEventListener('beforeunload', () => this.destroy());
         window.addEventListener('resize', this.#throttle(() => this.#handleWindowResize(), 250));
+    }
+
+    // 🎯 新增：词频工具请求处理
+    #onWordFrequencyRequested(e) {
+        console.log('[App] 🔤 处理词频工具请求');
+        
+        try {
+            this.#cleanupModules();
+            
+            // 检查词频工具是否可用
+            if (typeof window.navigateToWordFrequency === 'function') {
+                const success = window.navigateToWordFrequency();
+                if (success) {
+                    this.#updatePageTitle('词频分析工具');
+                    console.log('[App] ✅ 词频工具启动成功');
+                } else {
+                    throw new Error('词频工具启动失败');
+                }
+            } else {
+                throw new Error('词频工具不可用');
+            }
+            
+        } catch (error) {
+            console.error('[App] ❌ 词频工具启动失败:', error);
+            this.#handleWordFrequencyError(error);
+        }
+    }
+
+    // 🎯 新增：词频工具错误处理
+    #handleWordFrequencyError(error) {
+        const errorMessage = `
+            <div class="error-message" style="text-align: center; padding: 40px; color: #dc3545;">
+                <h3>🔤 词频分析工具暂不可用</h3>
+                <p>工具启动时出现错误：</p>
+                <p style="font-style: italic; color: #6c757d;">${error.message}</p>
+                <button onclick="location.reload()" 
+                        style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px;">
+                    🔄 重新加载
+                </button>
+            </div>
+        `;
+        this.elements.content.innerHTML = errorMessage;
+        this.#handleError('word-frequency-tool', error);
+    }
+
+    // 🎯 新增：更新页面标题
+    #updatePageTitle(title) {
+        document.title = title ? `${title} | ${this.config.siteTitle}` : this.config.siteTitle;
     }
 
     // 🚀 新增：全局点击处理（事件委托）
@@ -955,7 +1052,7 @@ class App {
         const homeButton = document.createElement('button');
         homeButton.innerHTML = 'Back to Index';
         homeButton.style.cssText = `
-            padding: 12px 20px; background: linear-gradient(135deg, #6c757d, #495057);
+            padding: 12px 20px; background: linear-gradient(135deg, #6c757d, #5a6268);
             color: white; border: none; border-radius: 6px; font-size: 14px;
             font-weight: 500; cursor: pointer; transition: all 0.3s ease;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -1160,421 +1257,369 @@ this.elements.content.innerHTML = `
         container.appendChild(fragment);
     }
 
-    // 🚀 优化：创建章节元素（缓存配置）
-// 🎨 完全替换 #createChapterElement() 方法为条件缩略图版本
-#createChapterElement(chapter) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'chapter-overview-item';
+    // 🎯 完全重写章节元素创建 - 添加智能难度显示
+    #createChapterElement(chapter) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'chapter-overview-item';
 
-    // 🚀 使用缓存的屏幕信息
-    const { isMobile, isTablet } = this.state.screenInfo;
+        // 🚀 使用缓存的屏幕信息
+        const { isMobile, isTablet } = this.state.screenInfo;
 
-    // 🔍 智能检测缩略图是否可用
-    const hasThumbnail = this.#hasValidThumbnail(chapter);
+        // 🔍 智能检测缩略图是否可用
+        const hasThumbnail = this.#hasValidThumbnail(chapter);
 
-    // 🎨 水平布局样式 - 根据是否有缩略图调整
-    wrapper.style.cssText = `
-        margin-bottom: 0 !important; 
-        border: none !important; 
-        border-bottom: 1px solid #f0f0f0 !important;
-        border-radius: 0 !important; 
-        background: transparent !important; 
-        transition: all 0.2s ease !important;
-        overflow: visible !important;
-        box-shadow: none !important;
-        display: flex !important;
-        align-items: flex-start !important;
-        padding: 24px 0 !important;
-        gap: ${isMobile ? '12px' : '16px'} !important;
-        position: relative !important;
-        height: auto !important;
-    `;
+        // 🎨 水平布局样式 - 根据是否有缩略图调整
+        wrapper.style.cssText = `
+            margin-bottom: 0 !important; 
+            border: none !important; 
+            border-bottom: 1px solid #f0f0f0 !important;
+            border-radius: 0 !important; 
+            background: transparent !important; 
+            transition: all 0.2s ease !important;
+            overflow: visible !important;
+            box-shadow: none !important;
+            display: flex !important;
+            align-items: flex-start !important;
+            padding: 24px 0 !important;
+            gap: ${isMobile ? '12px' : '16px'} !important;
+            position: relative !important;
+            height: auto !important;
+        `;
 
-    const link = document.createElement('a');
-    link.className = 'overview-chapter-link';
-    link.href = `#${chapter.id}`;
-    link.dataset.chapterId = chapter.id;
-    link.style.cssText = `
-        text-decoration: none !important; 
-        color: inherit !important; 
-        display: flex !important;
-        align-items: flex-start !important;
-        width: 100% !important;
-        gap: ${hasThumbnail ? (isMobile ? '12px' : '16px') : '0'} !important;
-        overflow: visible !important;
-        height: auto !important;
-    `;
+        const link = document.createElement('a');
+        link.className = 'overview-chapter-link';
+        link.href = `#${chapter.id}`;
+        link.dataset.chapterId = chapter.id;
+        link.style.cssText = `
+            text-decoration: none !important; 
+            color: inherit !important; 
+            display: flex !important;
+            align-items: flex-start !important;
+            width: 100% !important;
+            gap: ${hasThumbnail ? (isMobile ? '12px' : '16px') : '0'} !important;
+            overflow: visible !important;
+            height: auto !important;
+        `;
 
-    // 🎨 左侧内容区域 - 根据是否有缩略图调整宽度
-    const contentContainer = document.createElement('div');
-    contentContainer.className = 'chapter-info';
-    contentContainer.style.cssText = `
-        flex: 1 !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: ${isMobile ? '6px' : '8px'} !important;
-        min-width: 0 !important;
-        overflow: visible !important;
-        ${hasThumbnail ? '' : 'width: 100% !important;'}
-    `;
+        // 🎨 左侧内容区域 - 根据是否有缩略图调整宽度
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'chapter-info';
+        contentContainer.style.cssText = `
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: ${isMobile ? '6px' : '8px'} !important;
+            min-width: 0 !important;
+            overflow: visible !important;
+            ${hasThumbnail ? '' : 'width: 100% !important;'}
+        `;
 
-    // 🎨 系列信息（顶部）
-    const seriesInfo = document.createElement('div');
-    seriesInfo.className = 'chapter-series-info';
-    seriesInfo.style.cssText = `
-        display: flex !important;
-        align-items: center !important;
-        gap: 6px !important;
-        font-size: ${isMobile ? '12px' : '13px'} !important;
-        color: #666 !important;
-        font-weight: 500 !important;
-        margin-bottom: 4px !important;
-    `;
+        // 🎨 系列信息（顶部）
+        const seriesInfo = document.createElement('div');
+        seriesInfo.className = 'chapter-series-info';
+        seriesInfo.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            font-size: ${isMobile ? '12px' : '13px'} !important;
+            color: #666 !important;
+            font-weight: 500 !important;
+            margin-bottom: 4px !important;
+        `;
 
-    const seriesIcon = document.createElement('span');
-    seriesIcon.textContent = '📺';
-    seriesIcon.style.cssText = `
-        font-size: ${isMobile ? '11px' : '12px'} !important;
-    `;
+        const seriesIcon = document.createElement('span');
+        seriesIcon.textContent = '📺';
+        seriesIcon.style.cssText = `
+            font-size: ${isMobile ? '11px' : '12px'} !important;
+        `;
 
-    const seriesText = document.createElement('span');
-    seriesText.textContent = chapter.seriesTitle || '6 Minutes English';
-    seriesText.style.cssText = `
-        color: #666 !important;
-    `;
+        const seriesText = document.createElement('span');
+        seriesText.textContent = chapter.seriesTitle || '6 Minutes English';
+        seriesText.style.cssText = `
+            color: #666 !important;
+        `;
 
-    seriesInfo.appendChild(seriesIcon);
-    seriesInfo.appendChild(seriesText);
+        seriesInfo.appendChild(seriesIcon);
+        seriesInfo.appendChild(seriesText);
 
-    // 🎨 标题
-    const title = document.createElement('h2');
-    title.style.cssText = `
-        margin: 0 !important; 
-        font-size: ${isMobile ? '18px' : '22px'} !important; 
-        color: #1a1a1a !important;
-        font-weight: 700 !important;
-        line-height: 1.3 !important;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
-        margin-bottom: ${isMobile ? '6px' : '8px'} !important;
-        display: -webkit-box !important;
-        -webkit-line-clamp: 2 !important;
-        -webkit-box-orient: vertical !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    `;
-    title.textContent = chapter.title;
+        // 🎨 标题
+        const title = document.createElement('h2');
+        title.style.cssText = `
+            margin: 0 !important; 
+            font-size: ${isMobile ? '18px' : '22px'} !important; 
+            color: #1a1a1a !important;
+            font-weight: 700 !important;
+            line-height: 1.3 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+            margin-bottom: ${isMobile ? '6px' : '8px'} !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        `;
+        title.textContent = chapter.title;
 
-    // 🎨 描述
-    const description = document.createElement('p');
-    description.style.cssText = `
-        margin: 0 !important; 
-        font-size: ${isMobile ? '14px' : '15px'} !important; 
-        color: #666 !important; 
-        line-height: 1.4 !important;
-        font-weight: 400 !important;
-        margin-bottom: ${isMobile ? '8px' : '12px'} !important;
-        display: -webkit-box !important;
-        -webkit-line-clamp: 2 !important;
-        -webkit-box-orient: vertical !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-    `;
-    description.textContent = chapter.description || 'Explore this English learning topic';
+        // 🎨 描述
+        const description = document.createElement('p');
+        description.style.cssText = `
+            margin: 0 !important; 
+            font-size: ${isMobile ? '14px' : '15px'} !important; 
+            color: #666 !important; 
+            line-height: 1.4 !important;
+            font-weight: 400 !important;
+            margin-bottom: ${isMobile ? '8px' : '12px'} !important;
+            display: -webkit-box !important;
+            -webkit-line-clamp: 2 !important;
+            -webkit-box-orient: vertical !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        `;
+        description.textContent = chapter.description || 'Explore this English learning topic';
 
-    // 🎨 底部标签行（智能难度版本）
-    const tagsRow = document.createElement('div');
-    tagsRow.className = 'chapter-tags-row';
-    tagsRow.style.cssText = `
-        display: flex !important;
-        align-items: center !important;
-        gap: ${isMobile ? '10px' : '12px'} !important;
-        font-size: ${isMobile ? '12px' : '13px'} !important;
-        color: #666 !important;
-        font-weight: 500 !important;
-        flex-wrap: wrap !important;
-    `;
+        // 🎨 底部标签行（智能难度版本）
+        const tagsRow = document.createElement('div');
+        tagsRow.className = 'chapter-tags-row';
+        tagsRow.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: ${isMobile ? '10px' : '12px'} !important;
+            font-size: ${isMobile ? '12px' : '13px'} !important;
+            color: #666 !important;
+            font-weight: 500 !important;
+            flex-wrap: wrap !important;
+        `;
 
-    // 🎯 智能难度计算
-    const getDifficulty = () => {
-        // 检查词频管理器是否已初始化
-        if (window.app?.wordFreqManager?.isInitialized) {
-            try {
-                const difficulty = window.app.wordFreqManager.getArticleDifficulty(chapter.id);
-                if (difficulty) {
-                    return {
-                        stars: difficulty.stars,
-                        tooltip: difficulty.tooltip || `难度评级：${difficulty.label}`
-                    };
+        // 🎯 智能难度计算 - 使用词频管理器
+        const getDifficulty = () => {
+            // 检查词频管理器是否已初始化
+            if (this.wordFreqManager?.isInitialized) {
+                try {
+                    const difficulty = this.wordFreqManager.getArticleDifficulty(chapter.id);
+                    if (difficulty) {
+                        return {
+                            stars: difficulty.stars,
+                            tooltip: difficulty.tooltip || `难度评级：${difficulty.label}`
+                        };
+                    }
+                } catch (error) {
+                    console.warn('智能难度计算失败，使用默认值:', error);
                 }
-            } catch (error) {
-                console.warn('智能难度计算失败，使用默认值:', error);
             }
-        }
-        
-        // 降级方案：基于章节ID或标题长度的简单推断
-        const titleLength = chapter.title?.length || 30;
-        let stars;
-        if (titleLength < 25) stars = 2;
-        else if (titleLength < 40) stars = 3;
-        else stars = 4;
-        
-        return { 
-            stars, 
-            tooltip: "智能分析中，当前为预估难度" 
+            
+            // 降级方案：基于章节ID或标题长度的简单推断
+            const titleLength = chapter.title?.length || 30;
+            let stars;
+            if (titleLength < 25) stars = 2;
+            else if (titleLength < 40) stars = 3;
+            else stars = 4;
+            
+            return { 
+                stars, 
+                tooltip: "智能分析中，当前为预估难度" 
+            };
         };
-    };
 
-    const { stars, tooltip } = getDifficulty();
+        const { stars, tooltip } = getDifficulty();
 
-    // 星星难度（智能计算）
-    const difficultyTag = document.createElement('span');
-    difficultyTag.style.cssText = `
-        display: flex !important;
-        align-items: center !important;
-        color: #ffc107 !important;
-        cursor: help !important;
-    `;
-    difficultyTag.innerHTML = `<span title="${tooltip}">${'⭐'.repeat(stars)}</span>`;
-
-    // 阅读时间（智能推断）
-    const timeTag = document.createElement('span');
-    timeTag.style.cssText = `
-        display: flex !important;
-        align-items: center !important;
-        gap: 4px !important;
-        color: #666 !important;
-    `;
-    const estimatedTime = chapter.audio ? '6 min' : '4 min';
-    timeTag.innerHTML = `
-        <span>📖</span>
-        <span>${estimatedTime}</span>
-    `;
-
-    // 媒体类型（根据实际数据判断）
-    const mediaTag = document.createElement('span');
-    mediaTag.style.cssText = `
-        display: flex !important;
-        align-items: center !important;
-        gap: 4px !important;
-        color: #666 !important;
-    `;
-
-    if (chapter.audio) {
-        mediaTag.innerHTML = `
-            <span>🎵</span>
-            <span>Audio</span>
+        // 星星难度（智能计算）
+        const difficultyTag = document.createElement('span');
+        difficultyTag.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            color: #ffc107 !important;
+            cursor: help !important;
         `;
-    } else {
-        mediaTag.innerHTML = `
+        difficultyTag.innerHTML = `<span title="${tooltip}">${'⭐'.repeat(stars)}</span>`;
+
+        // 阅读时间（智能推断）
+        const timeTag = document.createElement('span');
+        timeTag.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            color: #666 !important;
+        `;
+        const estimatedTime = chapter.audio ? '6 min' : '4 min';
+        timeTag.innerHTML = `
             <span>📖</span>
-            <span>Article</span>
+            <span>${estimatedTime}</span>
         `;
-    }
 
-    tagsRow.appendChild(difficultyTag);
-    tagsRow.appendChild(timeTag);
-    tagsRow.appendChild(mediaTag);
+        // 媒体类型（根据实际数据判断）
+        const mediaTag = document.createElement('span');
+        mediaTag.style.cssText = `
+            display: flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            color: #666 !important;
+        `;
 
-    // 🎨 组装左侧内容
-    contentContainer.appendChild(seriesInfo);
-    contentContainer.appendChild(title);
-    contentContainer.appendChild(description);
-    contentContainer.appendChild(tagsRow);
-
-    // 🎨 组装整体布局（左侧内容 + 右侧图片）
-    link.appendChild(contentContainer);
-
-    // 🔍 条件渲染：只有在有有效缩略图时才创建图片容器
-    if (hasThumbnail) {
-        const imageContainer = this.#createThumbnailContainer(chapter, isMobile);
-        link.appendChild(imageContainer);
-    }
-
-    wrapper.appendChild(link);
-
-    // 🎨 悬停效果
-    const addHoverEffect = () => {
-        wrapper.style.backgroundColor = '#fafafa';
-        title.style.color = '#1a73e8';
-        
-        // 只有在有缩略图时才应用图片悬停效果
-        if (hasThumbnail) {
-            const thumbnail = wrapper.querySelector('.chapter-thumbnail');
-            if (thumbnail) {
-                thumbnail.style.transform = 'scale(1.05)';
-            }
+        if (chapter.audio) {
+            mediaTag.innerHTML = `
+                <span>🎵</span>
+                <span>Audio</span>
+            `;
+        } else {
+            mediaTag.innerHTML = `
+                <span>📖</span>
+                <span>Article</span>
+            `;
         }
-    };
 
-    const removeHoverEffect = () => {
-        wrapper.style.backgroundColor = 'transparent';
-        title.style.color = '#1a1a1a';
-        
-        // 只有在有缩略图时才重置图片效果
+        tagsRow.appendChild(difficultyTag);
+        tagsRow.appendChild(timeTag);
+        tagsRow.appendChild(mediaTag);
+
+        // 🎨 组装左侧内容
+        contentContainer.appendChild(seriesInfo);
+        contentContainer.appendChild(title);
+        contentContainer.appendChild(description);
+        contentContainer.appendChild(tagsRow);
+
+        // 🎨 组装整体布局（左侧内容 + 右侧图片）
+        link.appendChild(contentContainer);
+
+        // 🔍 条件渲染：只有在有有效缩略图时才创建图片容器
         if (hasThumbnail) {
-            const thumbnail = wrapper.querySelector('.chapter-thumbnail');
-            if (thumbnail) {
-                thumbnail.style.transform = 'scale(1)';
-            }
+            const imageContainer = this.#createThumbnailContainer(chapter, isMobile);
+            link.appendChild(imageContainer);
         }
-    };
 
-    if (isMobile) {
-        wrapper.addEventListener('touchstart', addHoverEffect);
-        wrapper.addEventListener('touchend', removeHoverEffect);
-        wrapper.addEventListener('touchcancel', removeHoverEffect);
-    } else {
-        wrapper.addEventListener('mouseenter', addHoverEffect);
-        wrapper.addEventListener('mouseleave', removeHoverEffect);
+        wrapper.appendChild(link);
+
+        // 🎨 悬停效果
+        const addHoverEffect = () => {
+            wrapper.style.backgroundColor = '#fafafa';
+            title.style.color = '#1a73e8';
+            
+            // 只有在有缩略图时才应用图片悬停效果
+            if (hasThumbnail) {
+                const thumbnail = wrapper.querySelector('.chapter-thumbnail');
+                if (thumbnail) {
+                    thumbnail.style.transform = 'scale(1.05)';
+                }
+            }
+        };
+
+        const removeHoverEffect = () => {
+            wrapper.style.backgroundColor = 'transparent';
+            title.style.color = '#1a1a1a';
+            
+            // 只有在有缩略图时才重置图片效果
+            if (hasThumbnail) {
+                const thumbnail = wrapper.querySelector('.chapter-thumbnail');
+                if (thumbnail) {
+                    thumbnail.style.transform = 'scale(1)';
+                }
+            }
+        };
+
+        if (isMobile) {
+            wrapper.addEventListener('touchstart', addHoverEffect);
+            wrapper.addEventListener('touchend', removeHoverEffect);
+            wrapper.addEventListener('touchcancel', removeHoverEffect);
+        } else {
+            wrapper.addEventListener('mouseenter', addHoverEffect);
+            wrapper.addEventListener('mouseleave', removeHoverEffect);
+        }
+
+        return wrapper;
     }
 
-    return wrapper;
-}
+    // 🔍 智能检测缩略图是否有效
+    #hasValidThumbnail(chapter) {
+        if (!chapter.thumbnail) {
+            return false;
+        }
 
-// 🔍 新增：智能检测缩略图是否有效
-#hasValidThumbnail(chapter) {
-    // 检查是否存在缩略图字段
-    if (!chapter.thumbnail) {
-        return false;
+        if (typeof chapter.thumbnail !== 'string' || !chapter.thumbnail.trim()) {
+            return false;
+        }
+
+        const placeholderPaths = [
+            'images/placeholder.jpg',
+            'placeholder.jpg',
+            '/placeholder.jpg',
+            'images/default.jpg',
+            'default.jpg'
+        ];
+
+        const normalizedPath = chapter.thumbnail.toLowerCase().replace(/^\.\//, '');
+        if (placeholderPaths.includes(normalizedPath)) {
+            return false;
+        }
+
+        const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i;
+        const isHttpUrl = /^https?:\/\//.test(chapter.thumbnail);
+        const isRelativePath = /^(\.\/|\/|images\/|assets\/)/.test(chapter.thumbnail);
+        const hasImageExtension = imageExtensions.test(chapter.thumbnail);
+
+        return (isHttpUrl || isRelativePath) && (hasImageExtension || isHttpUrl);
     }
 
-    // 检查是否为空字符串或只包含空白字符
-    if (typeof chapter.thumbnail !== 'string' || !chapter.thumbnail.trim()) {
-        return false;
+    // 🎨 创建缩略图容器
+    #createThumbnailContainer(chapter, isMobile) {
+        const imageContainer = document.createElement('div');
+        imageContainer.className = 'chapter-thumbnail-container';
+        imageContainer.style.cssText = `
+            width: ${isMobile ? '80px' : '120px'} !important;
+            height: ${isMobile ? '60px' : '90px'} !important;
+            flex-shrink: 0 !important;
+            border-radius: 8px !important;
+            overflow: hidden !important;
+            background: #f8f9fa !important;
+            position: relative !important;
+        `;
+
+        const thumbnail = document.createElement('img');
+        thumbnail.className = 'chapter-thumbnail';
+        thumbnail.loading = 'lazy';
+        thumbnail.src = chapter.thumbnail;
+        thumbnail.alt = chapter.title;
+        thumbnail.style.cssText = `
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            display: block !important;
+            transition: transform 0.3s ease, opacity 0.3s ease !important;
+        `;
+
+        thumbnail.addEventListener('error', () => {
+            this.#handleThumbnailError(imageContainer, thumbnail);
+        }, { once: true });
+
+        thumbnail.addEventListener('load', () => {
+            thumbnail.style.opacity = '1';
+        }, { once: true });
+
+        thumbnail.style.opacity = '0.8';
+
+        imageContainer.appendChild(thumbnail);
+        return imageContainer;
     }
 
-    // 检查是否为占位符路径
-    const placeholderPaths = [
-        'images/placeholder.jpg',
-        'placeholder.jpg',
-        '/placeholder.jpg',
-        'images/default.jpg',
-        'default.jpg'
-    ];
+    // 🔧 缩略图加载错误处理
+    #handleThumbnailError(container, thumbnail) {
+        console.warn('[App] 缩略图加载失败:', thumbnail.src);
+        
+        const placeholder = document.createElement('div');
+        placeholder.style.cssText = `
+            width: 100% !important;
+            height: 100% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+            color: #6c757d !important;
+            font-size: 24px !important;
+        `;
+        placeholder.textContent = '📖';
 
-    const normalizedPath = chapter.thumbnail.toLowerCase().replace(/^\.\//, '');
-    if (placeholderPaths.includes(normalizedPath)) {
-        return false;
+        container.innerHTML = '';
+        container.appendChild(placeholder);
+        container.classList.add('thumbnail-error');
     }
-
-    // 检查是否为有效的图片URL格式
-    const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i;
-    const isHttpUrl = /^https?:\/\//.test(chapter.thumbnail);
-    const isRelativePath = /^(\.\/|\/|images\/|assets\/)/.test(chapter.thumbnail);
-    const hasImageExtension = imageExtensions.test(chapter.thumbnail);
-
-    // 允许HTTP URL或相对路径且有图片扩展名
-    return (isHttpUrl || isRelativePath) && (hasImageExtension || isHttpUrl);
-}
-
-// 🎨 新增：创建缩略图容器（独立方法便于维护）
-#createThumbnailContainer(chapter, isMobile) {
-    const imageContainer = document.createElement('div');
-    imageContainer.className = 'chapter-thumbnail-container';
-    imageContainer.style.cssText = `
-        width: ${isMobile ? '80px' : '120px'} !important;
-        height: ${isMobile ? '60px' : '90px'} !important;
-        flex-shrink: 0 !important;
-        border-radius: 8px !important;
-        overflow: hidden !important;
-        background: #f8f9fa !important;
-        position: relative !important;
-    `;
-
-    const thumbnail = document.createElement('img');
-    thumbnail.className = 'chapter-thumbnail';
-    thumbnail.loading = 'lazy';
-    thumbnail.src = chapter.thumbnail;
-    thumbnail.alt = chapter.title;
-    thumbnail.style.cssText = `
-        width: 100% !important;
-        height: 100% !important;
-        object-fit: cover !important;
-        display: block !important;
-        transition: transform 0.3s ease, opacity 0.3s ease !important;
-    `;
-
-    // 🔧 图片加载错误处理
-    thumbnail.addEventListener('error', () => {
-        this.#handleThumbnailError(imageContainer, thumbnail);
-    }, { once: true });
-
-    // 🔧 图片加载成功处理
-    thumbnail.addEventListener('load', () => {
-        thumbnail.style.opacity = '1';
-    }, { once: true });
-
-    // 初始设置为半透明，加载完成后变为不透明
-    thumbnail.style.opacity = '0.8';
-
-    imageContainer.appendChild(thumbnail);
-    return imageContainer;
-}
-
-// 🔧 新增：缩略图加载错误处理
-#handleThumbnailError(container, thumbnail) {
-    console.warn('[App] 缩略图加载失败:', thumbnail.src);
-    
-    // 创建占位符图标
-    const placeholder = document.createElement('div');
-    placeholder.style.cssText = `
-        width: 100% !important;
-        height: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
-        color: #6c757d !important;
-        font-size: 24px !important;
-    `;
-    placeholder.textContent = '📖';
-
-    // 替换失败的图片
-    container.innerHTML = '';
-    container.appendChild(placeholder);
-    
-    // 为容器添加错误标识
-    container.classList.add('thumbnail-error');
-}
-
-// === 关键变化对比 ===
-// BEFORE (原始的章节元素创建逻辑)
-/*
-// 🎨 右侧图片 - 总是创建
-const imageContainer = document.createElement('div');
-imageContainer.style.cssText = `
-    width: ${isMobile ? '80px' : '120px'} !important;
-    // ... 样式代码
-`;
-
-const thumbnail = document.createElement('img');
-thumbnail.src = chapter.thumbnail || 'images/placeholder.jpg'; // 总是设置图片
-// ... 图片设置代码
-
-imageContainer.appendChild(thumbnail);
-link.appendChild(contentContainer);
-link.appendChild(imageContainer); // 总是添加图片容器
-*/
-
-// AFTER (优化后的条件渲染逻辑)
-/*
-// 🔍 条件渲染：只有在有有效缩略图时才创建图片容器
-if (hasThumbnail) {
-    const imageContainer = this.#createThumbnailContainer(chapter, isMobile);
-    link.appendChild(imageContainer);
-}
-
-// 新增智能检测方法
-#hasValidThumbnail(chapter) {
-    // 多重验证：存在性、非空、非占位符、格式正确
-}
-*/
-
-// IMPACT: 
-// 1. 性能提升：避免无效图片的加载和DOM创建
-// 2. 用户体验：无缩略图时内容自动填充全宽，显示更美观
-// 3. 错误处理：图片加载失败时显示优雅的占位符
-// 4. 代码维护：逻辑更清晰，职责分离
 
     // === 公共API方法 ===
     async waitForInitialization() {
@@ -1587,7 +1632,8 @@ if (hasThumbnail) {
             modulesActive: {
                 navigation: !!this.navigation,
                 glossary: !!this.glossaryManager,
-                audioSync: !!this.audioSyncManager
+                audioSync: !!this.audioSyncManager,
+                wordFreq: !!this.wordFreqManager // 🎯 新增
             },
             chapterNavState: {
                 ...this.chapterNavState
@@ -1640,6 +1686,11 @@ if (hasThumbnail) {
 
         // 🚀 优化：异步清理
         this.#cleanupModules().finally(() => {
+            // 🎯 清理词频管理器
+            if (this.wordFreqManager?.destroy) {
+                this.wordFreqManager.destroy();
+            }
+
             // 清理DOM缓存
             this.domCache.clear();
 
@@ -1715,6 +1766,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // 导出App类
 window.EnglishSite.App = App;
+
 // 🚀 全局调试函数
 window.debugNavData = function() {
     const app = window.app;
