@@ -738,33 +738,49 @@ class SimplifiedWordFrequencyManager {
         }, 0);
     }
     
-    // 🆕 等待导航系统就绪
+    // 🆕 等待导航系统就绪 - 增强版
     async waitForNavigationReady() {
-        const maxWaitTime = 30000; // 30秒超时
-        const checkInterval = 100;
+        const maxWaitTime = 45000; // 45秒超时（增加等待时间）
+        const checkInterval = 200; // 减少检查间隔
         let waitedTime = 0;
         
-        console.log('⏳ 等待导航系统就绪...');
+        console.log('⏳ 等待完整应用初始化...');
         
         return new Promise((resolve) => {
-            const checkNavReady = () => {
-                // 检查导航系统是否就绪
-                const navReady = window.app?.navigation?.state?.chaptersMap?.size > 0 ||
-                                window.app?.navigation?.getAllChapters ||
-                                document.querySelector('[data-navigation-ready]');
+            const checkAppReady = () => {
+                // 🔧 更全面的就绪检查
+                const appExists = !!window.app;
+                const appInitialized = window.app?.initPromise;
+                const navExists = !!window.app?.navigation;
+                const navInitialized = window.app?.navigation?.state?.chaptersMap?.size > 0;
+                const hasGetAllChapters = typeof window.app?.navigation?.getAllChapters === 'function';
                 
-                if (navReady) {
-                    console.log('✅ 导航系统已就绪');
+                const isReady = appExists && navExists && (navInitialized || hasGetAllChapters);
+                
+                if (this.config?.debug) {
+                    console.log(`[${waitedTime}ms] 应用状态检查:`, {
+                        appExists,
+                        appInitialized: !!appInitialized,
+                        navExists,
+                        navInitialized,
+                        hasGetAllChapters,
+                        isReady
+                    });
+                }
+                
+                if (isReady) {
+                    console.log('✅ 完整应用初始化完成');
                     resolve(true);
                 } else if (waitedTime >= maxWaitTime) {
-                    console.warn('⚠️ 导航系统等待超时，继续初始化');
+                    console.warn('⚠️ 应用等待超时，尝试继续初始化');
+                    console.warn('当前状态:', { appExists, navExists, navInitialized, hasGetAllChapters });
                     resolve(false);
                 } else {
                     waitedTime += checkInterval;
-                    setTimeout(checkNavReady, checkInterval);
+                    setTimeout(checkAppReady, checkInterval);
                 }
             };
-            checkNavReady();
+            checkAppReady();
         });
     }
     
