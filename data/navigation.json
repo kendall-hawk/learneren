@@ -1,10 +1,11 @@
 [
 {
-  "id": "word-frequency-tool",
-  "title": "词频分析", 
+  "id": "word-frequency",
+  "title": "词频分析",
   "type": "tool",
-  "action": "wordFrequency",         
-  "category": "analysis"
+  "url": "word-frequency",
+  "icon": "📊",
+  "description": "分析文章词频统计"
 },
   {
     "id": "all-articles",
