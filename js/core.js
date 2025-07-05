@@ -729,7 +729,9 @@
         UltraSimpleWorker: WorkerManager,
         
         // 初始化Promise
-        coreToolsReady: null
+        coreToolsReady: null,
+        StateManager: null, // 将在加载时设置
+        LegacyAdapter: null // 将在加载时设置
     });
     
     // 自动初始化
