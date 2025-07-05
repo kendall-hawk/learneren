@@ -1902,6 +1902,8 @@ class Navigation {
     // 🔧 新增：词频工具专用处理方法
     handleWordFrequencyTool(node) {
         console.log('[Navigation] 🔤 启动词频分析工具...');
+        
+        this.close();
 
         this.updateTitle(node.title);
         this.setActiveLink(node.id);
