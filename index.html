@@ -114,6 +114,12 @@
 <button onclick="retryStandalone()" style="position: fixed; top: 360px; right: 10px; z-index: 9999; background: #6f42c1; color: white; border: none; padding: 10px; border-radius: 5px;">
     🔄 重试独立
 </button>
+<button onclick="checkScriptErrors()" style="position: fixed; top: 410px; right: 10px; z-index: 9999; background: #fd7e14; color: white; border: none; padding: 10px; border-radius: 5px;">
+    🚨 检查错误
+</button>
+<button onclick="createMinimalWordFreq()" style="position: fixed; top: 460px; right: 10px; z-index: 9999; background: #20c997; color: white; border: none; padding: 10px; border-radius: 5px;">
+    🛠️ 最小版本
+</button>
     <!-- 导航栏 - 智能隐藏/显示 -->
     <nav id="main-nav" class="main-navigation smart-nav" role="navigation" aria-label="主导航">
         <!-- 导航内容将由JavaScript动态生成 -->
@@ -166,6 +172,179 @@
     <!-- 在其他JS文件之前加载 -->
     <script src="js/core.js" defer></script>
     <!-- JavaScript模块加载 -->
+    <script>
+function createMinimalWordFreq() {
+    try {
+        alert('🛠️ 创建最小词频管理器...');
+        
+        // 创建最小词频管理器
+        class MinimalWordFreqManager {
+            constructor() {
+                this.isInitialized = false;
+                this.initPromise = this.initialize();
+            }
+            
+            async initialize() {
+                // 模拟初始化
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                this.isInitialized = true;
+                return true;
+            }
+            
+            async waitForReady() {
+                return this.initPromise;
+            }
+            
+            getTopWords(limit = 100) {
+                // 返回示例数据
+                return [
+                    { word: 'example', totalCount: 10, articleCount: 3 },
+                    { word: 'test', totalCount: 8, articleCount: 2 },
+                    { word: 'demo', totalCount: 6, articleCount: 2 }
+                ];
+            }
+            
+            searchWords(query) {
+                return [
+                    { word: query, totalCount: 5, articleCount: 1, isIntelligentMatch: true }
+                ];
+            }
+            
+            searchWordsExact(query) {
+                return [
+                    { word: query, totalCount: 3, articleCount: 1, isExactMatch: true }
+                ];
+            }
+            
+            getWordDetails(word) {
+                return {
+                    word: word,
+                    totalCount: 5,
+                    articleCount: 2,
+                    articles: [
+                        { id: 'demo1', title: '示例文章1', count: 3 },
+                        { id: 'demo2', title: '示例文章2', count: 2 }
+                    ]
+                };
+            }
+            
+            getStatsSummary() {
+                return {
+                    totalUniqueWords: 1000,
+                    totalWordOccurrences: 5000,
+                    totalArticlesAnalyzed: 50,
+                    averageWordsPerArticle: 100
+                };
+            }
+            
+            getArticleDifficulty(articleId) {
+                return {
+                    stars: 3,
+                    label: "⭐⭐⭐ 中等",
+                    tooltip: "演示难度"
+                };
+            }
+            
+            destroy() {
+                this.isInitialized = false;
+            }
+        }
+        
+        // 注册到EnglishSite
+        window.EnglishSite.WordFrequencyManager = MinimalWordFreqManager;
+        
+        alert('✅ 最小词频管理器创建成功！');
+        
+        // 立即测试
+        testMinimalVersion();
+        
+    } catch (error) {
+        alert('❌ 创建失败: ' + error.message);
+    }
+}
+
+function testMinimalVersion() {
+    try {
+        alert('🧪 测试最小版本...');
+        
+        const container = document.querySelector('#content');
+        if (!container) {
+            alert('❌ 找不到容器');
+            return;
+        }
+        
+        // 检查UI类
+        if (!window.EnglishSite.WordFrequencyUI) {
+            alert('❌ UI类不存在');
+            return;
+        }
+        
+        // 清空容器
+        container.innerHTML = '<div style="text-align: center; padding: 50px; background: #e8f5e8;"><h2>🔤 最小版词频工具</h2><p>正在启动演示版本...</p></div>';
+        
+        // 创建实例
+        const manager = new window.EnglishSite.WordFrequencyManager();
+        const ui = new window.EnglishSite.WordFrequencyUI(container, manager);
+        
+        alert('✅ 实例创建成功，开始初始化...');
+        
+        // 初始化
+        manager.waitForReady()
+            .then(() => {
+                alert('✅ 管理器就绪，初始化UI...');
+                return ui.initialize();
+            })
+            .then(() => {
+                alert('🎉 最小版词频工具启动成功！这是演示版本，包含示例数据。');
+                
+                // 保存到全局
+                window.wordFreqManager = manager;
+                window.wordFreqUI = ui;
+            })
+            .catch(error => {
+                alert('❌ 初始化失败: ' + error.message);
+                container.innerHTML = `
+                    <div style="padding: 20px; color: red; text-align: center;">
+                        <h3>初始化失败</h3>
+                        <p>${error.message}</p>
+                        <button onclick="location.reload()">重新加载页面</button>
+                    </div>
+                `;
+            });
+            
+    } catch (error) {
+        alert('❌ 测试失败: ' + error.message);
+    }
+}
+</script>
+    <script>
+function checkScriptErrors() {
+    alert('🚨 检查脚本执行状态...');
+    
+    // 检查词频脚本是否完全执行
+    const checks = [
+        'SimplifiedWordStemmer',
+        'SimplifiedWordFrequencyAnalyzer', 
+        'SimplifiedWordFrequencyManager',
+        'CompatibilityLayer'
+    ];
+    
+    let result = '脚本执行检查:\n';
+    checks.forEach(className => {
+        const exists = typeof window[className] !== 'undefined';
+        result += `• ${className}: ${exists ? '✅' : '❌'}\n`;
+    });
+    
+    alert(result);
+    
+    // 检查是否有部分类在其他地方
+    const globalVars = Object.getOwnPropertyNames(window).filter(name => 
+        name.includes('Word') || name.includes('Freq') || name.includes('Stemmer')
+    );
+    
+    alert(`全局词频相关变量:\n${globalVars.join('\n') || '无'}`);
+}
+</script>
     <script>
 function retryStandalone() {
     alert('🔄 重新尝试独立模式...');
