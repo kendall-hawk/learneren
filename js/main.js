@@ -1,4 +1,4 @@
-// js/main.js - 词频集成修复版 - 解决词频页面无法打开问题
+// js/main.js - 状态管理器集成版 - 保持100%功能兼容
 window.EnglishSite = window.EnglishSite || {};
 
 class App {
@@ -10,6 +10,11 @@ class App {
             enableErrorBoundary: true,
             ...options
         });
+
+        // 🆕 状态管理器相关
+        this.stateManager = null;
+        this.legacyAdapter = null;
+        this.stateManagerReady = false;
 
         // 🚀 优化：DOM缓存系统
         this.domCache = new Map();
@@ -69,10 +74,13 @@ class App {
     }
 
     async #initialize() {
-        this.perfId = window.EnglishSite.PerformanceMonitor?.startMeasure('app-init', 'app');
-
         try {
             await window.EnglishSite.coreToolsReady;
+
+            // 🆕 第一步：初始化状态管理器
+            await this.#initializeStateManager();
+
+            this.perfId = window.EnglishSite.PerformanceMonitor?.startMeasure('app-init', 'app');
 
             // 🚀 优化：错误处理简化
             window.EnglishSite.SimpleErrorHandler.record('app', 'init-start',
@@ -97,6 +105,39 @@ class App {
             window.EnglishSite.PerformanceMonitor?.endMeasure(this.perfId);
             this.#handleError('initialization', error);
             throw error;
+        }
+    }
+
+    // 🆕 新增方法：初始化状态管理器
+    async #initializeStateManager() {
+        try {
+            console.log('[App] 🚀 初始化状态管理器...');
+            
+            // 检查状态管理器类是否可用
+            if (!window.EnglishSite.StateManager || !window.EnglishSite.LegacyAdapter) {
+                console.warn('[App] ⚠️ 状态管理器类未找到，使用传统模式');
+                this.stateManagerReady = false;
+                return;
+            }
+            
+            // 创建状态管理器实例
+            this.stateManager = new window.EnglishSite.StateManager();
+            
+            // 创建兼容适配器
+            this.legacyAdapter = new window.EnglishSite.LegacyAdapter(this.stateManager);
+            
+            // 启用兼容模式（确保现有功能100%可用）
+            this.legacyAdapter.enable();
+            
+            this.stateManagerReady = true;
+            
+            console.log('[App] ✅ 状态管理器初始化完成');
+            console.log('[App] 📊 兼容性统计:', this.legacyAdapter.getCompatibilityStats());
+            
+        } catch (error) {
+            console.error('[App] ❌ 状态管理器初始化失败:', error);
+            this.stateManagerReady = false;
+            // 继续使用原有系统，不影响正常功能
         }
     }
 
@@ -1999,6 +2040,23 @@ class App {
         container.classList.add('thumbnail-error');
     }
 
+    // === 🆕 状态管理器相关公共API ===
+    
+    // 🆕 获取状态管理器
+    getStateManager() {
+        return this.stateManager;
+    }
+
+    // 🆕 获取兼容适配器
+    getLegacyAdapter() {
+        return this.legacyAdapter;
+    }
+
+    // 🆕 检查状态管理器状态
+    isStateManagerReady() {
+        return this.stateManagerReady && !!this.stateManager;
+    }
+
     // === 公共API方法 ===
     async waitForInitialization() {
         return this.initPromise;
@@ -2017,6 +2075,13 @@ class App {
                 initialized: this.state.wordFreqInitialized,
                 error: this.state.wordFreqError,
                 hasManager: !!this.wordFreqManager
+            },
+            // 🆕 状态管理器状态
+            stateManagerState: {
+                ready: this.stateManagerReady,
+                hasStateManager: !!this.stateManager,
+                hasLegacyAdapter: !!this.legacyAdapter,
+                compatibilityStats: this.legacyAdapter?.getCompatibilityStats() || {}
             },
             chapterNavState: {
                 ...this.chapterNavState
@@ -2118,6 +2183,7 @@ class App {
             domCacheHits: this.domCache.size,
             screenInfoCached: !!this.state.screenInfo,
             modulesLoaded: Object.fromEntries(this.state.loading),
+            stateManagerReady: this.stateManagerReady,
             overallHealth: 0
         };
 
@@ -2126,7 +2192,8 @@ class App {
             !!this.elements.content,
             !!this.elements.mainNav,
             this.state.loading.size > 0,
-            !!this.navigation
+            !!this.navigation,
+            this.stateManagerReady // 🆕 新增状态管理器检查
         ];
 
         testResults.overallHealth = (tests.filter(Boolean).length / tests.length * 100).toFixed(1);
@@ -2148,6 +2215,14 @@ class App {
             // 🎯 清理词频管理器
             if (this.wordFreqManager?.destroy) {
                 this.wordFreqManager.destroy();
+            }
+
+            // 🆕 清理状态管理器
+            if (this.legacyAdapter) {
+                this.legacyAdapter.disable();
+            }
+            if (this.stateManager) {
+                this.stateManager.destroy();
             }
 
             // 清理DOM缓存
@@ -2201,6 +2276,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const status = window.app.getAppStatus();
                 console.log('📱 当前应用状态:', status);
+
+                // 🆕 测试状态管理器
+                if (window.app.isStateManagerReady()) {
+                    console.log('🏗️ 状态管理器调试信息:', window.StateManagerDebug?.getState());
+                }
             }, 2000);
         }
 
@@ -2253,32 +2333,4 @@ window.debugNavData = function() {
                 hasChapters: !!item.chapters,
                 chaptersCount: item.chapters?.length || 0,
                 hasChildren: !!item.children,
-                childrenCount: item.children?.length || 0,
-                allProperties: Object.keys(item)
-            });
-        });
-    }
-
-    // 测试递归提取
-    console.log('5. 测试递归提取:');
-    try {
-        const chapters = app.extractAllChaptersFromNavData?.() ||
-            app.getAllChaptersFromNavData?.() || [];
-        console.log('6. 提取结果:', chapters);
-        console.log('7. 章节数量:', chapters.length);
-
-        return {
-            navData: app.navData,
-            extractedChapters: chapters,
-            summary: {
-                topLevelItems: app.navData?.length || 0,
-                totalChapters: chapters.length
-            }
-        };
-    } catch (error) {
-        console.error('递归提取测试失败:', error);
-        return {
-            error: error.message
-        };
-    }
-};
+                childrenCount: item.children?.
