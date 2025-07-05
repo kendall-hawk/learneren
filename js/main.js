@@ -536,6 +536,7 @@ class App {
         window.addEventListener('beforeunload', () => this.destroy());
         window.addEventListener('resize', this.#throttle(() => this.#handleWindowResize(), 250));
     }
+
     //🔧 新增：统一的容器查找逻辑
     #findWordFreqContainer() {
         console.log('[App] 🔍 查找词频容器...');
@@ -580,6 +581,7 @@ class App {
         console.log('[App] 🔤 处理词频工具请求');
 
         try {
+            // 🔧 修复：先彻底清理所有模块，包括词频
             this.#cleanupModules();
 
             // 🔧 修复：使用统一的词频启动逻辑
@@ -601,16 +603,82 @@ class App {
         }
     }
 
+    // 🔧 新增：专门的词频模块清理方法
+    #cleanupWordFrequencyModule() {
+        console.log('[App] 🧹 清理词频模块...');
+        
+        try {
+            // 1. 销毁UI实例
+            if (window.wordFreqUI) {
+                console.log('[App] 🗑️ 销毁词频UI实例');
+                if (typeof window.wordFreqUI.destroy === 'function') {
+                    window.wordFreqUI.destroy();
+                }
+                window.wordFreqUI = null;
+            }
+
+            // 2. 清理容器内容并重置事件监听器
+            const containers = [
+                '#word-frequency-container',
+                '.word-freq-container'
+            ];
+            
+            containers.forEach(selector => {
+                const container = document.querySelector(selector);
+                if (container) {
+                    console.log(`[App] 🧹 清理容器: ${selector}`);
+                    container.innerHTML = '';
+                    
+                    // 🔧 关键修复：移除所有事件监听器，通过克隆节点
+                    const newContainer = container.cloneNode(false);
+                    newContainer.id = container.id;
+                    newContainer.className = container.className;
+                    newContainer.style.cssText = container.style.cssText;
+                    
+                    if (container.parentNode) {
+                        container.parentNode.replaceChild(newContainer, container);
+                    }
+                }
+            });
+
+            // 3. 清理可能残留的词频相关DOM元素
+            const possibleElements = [
+                '.word-freq-styles',
+                '#word-freq-styles',
+                '.search-results-wrapper',
+                '.word-details-panel'
+            ];
+            
+            possibleElements.forEach(selector => {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(el => el.remove());
+            });
+
+            console.log('[App] ✅ 词频模块清理完成');
+            
+        } catch (error) {
+            console.error('[App] ❌ 词频模块清理失败:', error);
+        }
+    }
+
     // 🔧 新增：统一词频工具启动逻辑
     async #launchWordFrequencyTool() {
         console.log('[App] 🚀 启动统一词频工具...');
 
         try {
-            // 🔧 修复：确保容器存在
+            // 🔧 关键修复：先彻底清理之前的实例
+            this.#cleanupWordFrequencyModule();
+            
+            // 🔧 修复：确保容器存在且干净
             const container = this.#findOrCreateWordFreqContainer();
             if (!container) {
                 throw new Error('无法找到或创建词频容器');
             }
+
+            // 🔧 修复：确保容器完全干净
+            container.innerHTML = '';
+            container.removeAttribute('data-initialized');
+            container.removeAttribute('data-word-freq-active');
 
             // 🔧 修复：确保词频管理器已准备就绪
             if (!this.state.wordFreqInitialized) {
@@ -626,34 +694,35 @@ class App {
                 }
             }
 
-            // 🔧 修复：清空容器并启动UI
-            container.innerHTML = '';
-
             // 🔧 关键修复：使用已存在的统一实例
             const manager = this.wordFreqManager || window.wordFreqManager;
             if (!manager) {
                 throw new Error('词频管理器实例不存在');
             }
 
-            // 创建UI（如果尚未存在）
-            if (!window.wordFreqUI || window.wordFreqUI.container !== container) {
-                console.log('[App] 📱 创建词频UI...');
-
-                if (window.EnglishSite.WordFrequencyUI) {
-                    window.wordFreqUI = new window.EnglishSite.WordFrequencyUI(container, manager);
-
-                    // 等待UI初始化
-                    await window.wordFreqUI.initialize();
-                } else {
-                    throw new Error('词频UI类不可用');
-                }
+            // 🔧 关键修复：每次都创建全新的UI实例
+            console.log('[App] 📱 创建新的词频UI实例...');
+            
+            if (!window.EnglishSite.WordFrequencyUI) {
+                throw new Error('词频UI类不可用');
             }
+
+            // 🔧 关键修复：确保创建全新的UI实例
+            window.wordFreqUI = new window.EnglishSite.WordFrequencyUI(container, manager);
+
+            // 等待UI初始化
+            await window.wordFreqUI.initialize();
+
+            // 标记容器已初始化
+            container.setAttribute('data-initialized', 'true');
+            container.setAttribute('data-word-freq-active', 'true');
 
             console.log('[App] ✅ 统一词频工具启动完成');
             return true;
 
         } catch (error) {
             console.error('[App] ❌ 统一词频工具启动失败:', error);
+            this.#handleWordFrequencyError(error);
             return false;
         }
     }
@@ -665,23 +734,43 @@ class App {
             '#word-frequency-container',
             '.word-freq-container',
             '#content',
-            'main',
-            'body'
+            'main'
         ];
 
         for (const selector of selectors) {
             const container = document.querySelector(selector);
             if (container) {
                 console.log(`[App] ✅ 找到词频容器: ${selector}`);
+                
+                // 🔧 修复：如果是专用容器，确保完全干净
+                if (selector.includes('word-freq')) {
+                    container.innerHTML = '';
+                    // 移除可能残留的属性
+                    container.removeAttribute('data-initialized');
+                    container.removeAttribute('data-word-freq-active');
+                }
+                
                 return container;
             }
         }
 
-        // 如果都找不到，创建一个
+        // 如果都找不到，创建一个全新的
         console.log('[App] 📦 创建新的词频容器');
+        
+        // 🔧 修复：先移除可能存在的旧容器
+        const oldContainer = document.querySelector('#word-frequency-container');
+        if (oldContainer) {
+            oldContainer.remove();
+        }
+        
         const container = document.createElement('div');
         container.id = 'word-frequency-container';
-        document.body.appendChild(container);
+        container.style.cssText = 'width: 100%; height: 100%; overflow: auto;';
+        
+        // 添加到合适的父容器
+        const parent = this.elements.content || document.body;
+        parent.appendChild(container);
+        
         return container;
     }
 
@@ -1458,10 +1547,13 @@ class App {
         }
     }
 
-    // 🚀 优化：模块清理（统一处理）
+    // 🔧 修复：模块清理（添加词频清理）
     #cleanupModules() {
         this.#hideLoadingIndicator();
         this.#cleanupChapterNavigation();
+
+        // 🔧 新增：清理词频UI实例
+        this.#cleanupWordFrequencyModule();
 
         // 🚀 优化：并行清理
         const cleanupPromises = [];
@@ -1935,6 +2027,7 @@ class App {
             domCacheSize: this.domCache.size
         };
     }
+
     // 🔧 新增：获取词频管理器的公共方法
     async getWordFreqManager() {
         console.log('[App] 📤 获取词频管理器...');
