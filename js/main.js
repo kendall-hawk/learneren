@@ -536,7 +536,7 @@ class App {
         window.addEventListener('beforeunload', () => this.destroy());
         window.addEventListener('resize', this.#throttle(() => this.#handleWindowResize(), 250));
     }
-     //🔧 新增：统一的容器查找逻辑
+    //🔧 新增：统一的容器查找逻辑
     #findWordFreqContainer() {
         console.log('[App] 🔍 查找词频容器...');
 
@@ -1934,6 +1934,81 @@ class App {
             screenInfo: this.state.screenInfo,
             domCacheSize: this.domCache.size
         };
+    }
+    // 🔧 新增：获取词频管理器的公共方法
+    async getWordFreqManager() {
+        console.log('[App] 📤 获取词频管理器...');
+
+        try {
+            // 如果还没有创建，先创建
+            if (!this.wordFreqManager) {
+                console.log('[App] 🆕 词频管理器不存在，开始创建...');
+                await this.#createUnifiedWordFreqManager();
+            }
+
+            // 如果还没有初始化，等待初始化
+            if (!this.state.wordFreqInitialized && this.wordFreqManagerPromise) {
+                console.log('[App] ⏳ 等待词频管理器初始化...');
+                await this.wordFreqManagerPromise;
+            }
+
+            // 验证管理器状态
+            if (this.wordFreqManager && this.state.wordFreqInitialized) {
+                console.log('[App] ✅ 词频管理器已就绪');
+                return this.wordFreqManager;
+            } else {
+                throw new Error('词频管理器初始化失败');
+            }
+
+        } catch (error) {
+            console.error('[App] ❌ 获取词频管理器失败:', error);
+            throw error;
+        }
+    }
+
+    // 🔧 新增：获取导航状态的公共方法
+    getNavigationState() {
+        console.log('[App] 📊 获取导航状态...');
+
+        try {
+            if (!this.navigation || !this.navigation.state) {
+                console.warn('[App] 导航状态不可用，返回空状态');
+                return {
+                    available: false,
+                    chaptersMap: null,
+                    navigationTree: null,
+                    navData: this.navData || [],
+                    error: 'Navigation not initialized'
+                };
+            }
+
+            const state = {
+                available: true,
+                chaptersMap: this.navigation.state.chaptersMap,
+                navigationTree: this.navigation.state.navigationTree,
+                navData: this.navData || [],
+                totalChapters: this.navigation.state.chaptersMap?.size || 0,
+                navigationReady: this.#verifyNavigationReady()
+            };
+
+            console.log('[App] ✅ 导航状态获取成功:', {
+                available: state.available,
+                chaptersCount: state.totalChapters,
+                navigationReady: state.navigationReady
+            });
+
+            return state;
+
+        } catch (error) {
+            console.error('[App] 获取导航状态失败:', error);
+            return {
+                available: false,
+                chaptersMap: null,
+                navigationTree: null,
+                navData: this.navData || [],
+                error: error.message
+            };
+        }
     }
 
     // 🚀 新增：DOM缓存清理
