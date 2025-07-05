@@ -95,9 +95,15 @@
             </h1>
         </div>
     </div>
+    <button onclick="useStandaloneMode()" style="position: fixed; top: 160px; right: 10px; z-index: 9999; background: #28a745; color: white; border: none; padding: 10px; border-radius: 5px;">
+    🚀 独立模式
+</button>
         <!-- 临时添加到页面顶部 -->
     <button onclick="diagnoseWordFreq()" style="position: fixed; top: 110px; right: 10px; z-index: 9999; background: #ffc107; color: black; border: none; padding: 10px; border-radius: 5px;">
     🔍 诊断词频
+</button>
+<button onclick="checkScripts()" style="position: fixed; top: 210px; right: 10px; z-index: 9999; background: #dc3545; color: white; border: none; padding: 10px; border-radius: 5px;">
+    📋 检查脚本
 </button>
 
     <!-- 导航栏 - 智能隐藏/显示 -->
@@ -152,6 +158,78 @@
     <!-- 在其他JS文件之前加载 -->
     <script src="js/core.js" defer></script>
     <!-- JavaScript模块加载 -->
+    <script>
+function checkScripts() {
+    const scripts = document.querySelectorAll('script[src]');
+    let wordFreqScript = null;
+    let mainScript = null;
+    
+    scripts.forEach(script => {
+        if (script.src.includes('word-frequency')) {
+            wordFreqScript = script.src;
+        }
+        if (script.src.includes('main.js')) {
+            mainScript = script.src;
+        }
+    });
+    
+    alert(`脚本检查:\n• 总脚本数: ${scripts.length}\n• 词频脚本: ${wordFreqScript ? '✅' : '❌'}\n• 主脚本: ${mainScript ? '✅' : '❌'}\n• EnglishSite: ${!!window.EnglishSite ? '✅' : '❌'}`);
+    
+    if (wordFreqScript) {
+        alert(`词频脚本路径: ${wordFreqScript}`);
+    }
+}
+</script>
+    <script>
+function useStandaloneMode() {
+    try {
+        alert('🚀 尝试独立模式启动...');
+        
+        // 清空当前内容
+        const container = document.querySelector('#content') || 
+                         document.querySelector('main') || 
+                         document.body;
+        
+        if (!container) {
+            alert('❌ 找不到容器');
+            return;
+        }
+        
+        // 检查类是否存在
+        if (!window.EnglishSite?.WordFrequencyManager) {
+            alert('❌ 词频管理器类不存在');
+            return;
+        }
+        
+        if (!window.EnglishSite?.WordFrequencyUI) {
+            alert('❌ 词频UI类不存在');
+            return;
+        }
+        
+        alert('✅ 类检查通过，开始创建实例...');
+        
+        // 清空容器
+        container.innerHTML = '<div style="text-align: center; padding: 50px;"><h2>🔤 词频分析工具</h2><p>正在启动独立模式...</p></div>';
+        
+        // 创建独立的词频管理器
+        const manager = new window.EnglishSite.WordFrequencyManager();
+        const ui = new window.EnglishSite.WordFrequencyUI(container, manager);
+        
+        // 等待初始化
+        manager.waitForReady().then(() => {
+            alert('✅ 管理器准备就绪，初始化UI...');
+            return ui.initialize();
+        }).then(() => {
+            alert('🎉 独立模式启动成功！');
+        }).catch(error => {
+            alert('❌ 独立模式失败: ' + error.message);
+        });
+        
+    } catch (error) {
+        alert('❌ 独立模式异常: ' + error.message);
+    }
+}
+</script>
 <script>
 function diagnoseWordFreq() {
     let step = 1;
