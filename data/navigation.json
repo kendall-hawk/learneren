@@ -1,11 +1,13 @@
 [
-{
-  "id": "word-frequency-tool",
-  "title": "词频分析",
-  "type": "tool",
-  "action": "wordFrequency",
-  "category": "analysis"
-},
+  {
+    "id": "word-frequency-tool",
+    "title": "词频分析",
+    "type": "tool",
+    "action": "wordFrequency",
+    "category": "analysis",
+    "icon": "📊",
+    "description": "分析全站词频，支持智能搜索和精确匹配"
+  },
   {
     "id": "all-articles",
     "series": "所有文章",
