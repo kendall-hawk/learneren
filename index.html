@@ -120,6 +120,12 @@
 <button onclick="createMinimalWordFreq()" style="position: fixed; top: 460px; right: 10px; z-index: 9999; background: #20c997; color: white; border: none; padding: 10px; border-radius: 5px;">
     🛠️ 最小版本
 </button>
+<button onclick="debugNavClick()" style="position: fixed; top: 660px; right: 10px; z-index: 9999; background: #dc3545; color: white; border: none; padding: 10px; border-radius: 5px;">
+    🔍 调试导航点击
+</button>
+<button onclick="fixNavClick()" style="position: fixed; top: 710px; right: 10px; z-index: 9999; background: #ffc107; color: black; border: none; padding: 10px; border-radius: 5px;">
+    🔧 修复导航点击
+</button>
     <!-- 导航栏 - 智能隐藏/显示 -->
     <nav id="main-nav" class="main-navigation smart-nav" role="navigation" aria-label="主导航">
         <!-- 导航内容将由JavaScript动态生成 -->
@@ -172,6 +178,153 @@
     <!-- 在其他JS文件之前加载 -->
     <script src="js/core.js" defer></script>
     <!-- JavaScript模块加载 -->
+    <script>
+function fixNavClick() {
+    alert('🔧 开始修复导航点击...');
+    
+    try {
+        // 查找所有可能的词频元素
+        const selectors = [
+            '[data-id="word-frequency-tool"]',
+            '[data-action="wordFrequency"]', 
+            '[title*="词频"]',
+            '[title*="分析"]',
+            '.nav-item:contains("词频")',
+            '.nav-item:contains("分析")'
+        ];
+        
+        let elements = [];
+        
+        selectors.forEach(selector => {
+            try {
+                const found = document.querySelectorAll(selector);
+                elements.push(...found);
+            } catch (e) {
+                // 忽略contains等不支持的选择器
+            }
+        });
+        
+        // 手动查找包含"词频"文字的元素
+        const allNavItems = document.querySelectorAll('.nav-item, .nav-title, button, a');
+        allNavItems.forEach(el => {
+            if (el.textContent && (el.textContent.includes('词频') || el.textContent.includes('分析'))) {
+                elements.push(el);
+            }
+        });
+        
+        if (elements.length === 0) {
+            alert('❌ 没有找到任何词频相关元素');
+            return;
+        }
+        
+        alert(`✅ 找到 ${elements.length} 个词频相关元素，开始添加监听器...`);
+        
+        // 为所有找到的元素添加直接点击监听器
+        elements.forEach((el, index) => {
+            el.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                alert(`🔤 词频元素 ${index + 1} 被点击，启动词频工具...`);
+                
+                try {
+                    const success = window.navigateToWordFrequency();
+                    if (success) {
+                        alert('🎉 词频工具启动成功！');
+                    } else {
+                        alert('❌ 启动失败');
+                    }
+                } catch (error) {
+                    alert('❌ 启动异常: ' + error.message);
+                }
+            });
+        });
+        
+        alert(`🎉 修复完成！已为 ${elements.length} 个元素添加直接点击监听器`);
+        
+    } catch (error) {
+        alert('❌ 修复失败: ' + error.message);
+    }
+}
+</script>
+    <script>
+function debugNavClick() {
+    alert('🔍 开始调试导航点击事件流...');
+    
+    // 步骤1: 检查导航数据中的词频工具
+    console.log('=== 导航点击调试开始 ===');
+    
+    const navData = window.app?.navData || window.app?.navigation?.navData;
+    if (!navData) {
+        alert('❌ 步骤1失败: 导航数据不存在');
+        return;
+    }
+    
+    let wordFreqNode = null;
+    
+    function findWordFreqInNav(items) {
+        for (let item of items) {
+            if (item.id === 'word-frequency-tool' || item.action === 'wordFrequency') {
+                wordFreqNode = item;
+                return true;
+            }
+            if (item.children && findWordFreqInNav(item.children)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    const found = findWordFreqInNav(navData);
+    
+    if (!found) {
+        alert('❌ 步骤1失败: 导航数据中没有词频工具配置');
+        return;
+    }
+    
+    alert(`✅ 步骤1成功: 找到词频配置\n• ID: ${wordFreqNode.id}\n• 标题: ${wordFreqNode.title}\n• 类型: ${wordFreqNode.type}\n• 动作: ${wordFreqNode.action}`);
+    
+    // 步骤2: 检查DOM中是否有对应的元素
+    const wordFreqElements = document.querySelectorAll(`
+        [data-id="word-frequency-tool"],
+        [data-action="wordFrequency"],
+        [title*="词频"],
+        [title*="分析"]
+    `);
+    
+    if (wordFreqElements.length === 0) {
+        alert('❌ 步骤2失败: DOM中没有找到词频工具元素\n说明导航没有正确渲染');
+        return;
+    }
+    
+    alert(`✅ 步骤2成功: 找到 ${wordFreqElements.length} 个词频相关DOM元素`);
+    
+    // 步骤3: 检查事件监听器
+    const navigation = window.app?.navigation;
+    if (!navigation) {
+        alert('❌ 步骤3失败: Navigation实例不存在');
+        return;
+    }
+    
+    alert('✅ 步骤3成功: Navigation实例存在');
+    
+    // 步骤4: 手动触发导航处理
+    console.log('🧪 开始手动测试导航处理...');
+    
+    try {
+        // 测试handleNavItemClick
+        if (typeof navigation.handleNavItemClick === 'function') {
+            alert('✅ 找到 handleNavItemClick 方法，开始测试...');
+            navigation.handleNavItemClick('word-frequency-tool');
+            alert('🎯 已调用 handleNavItemClick("word-frequency-tool")');
+        } else {
+            alert('❌ handleNavItemClick 方法不存在');
+        }
+    } catch (error) {
+        alert('❌ 手动调用失败: ' + error.message);
+    }
+}
+</script>
     <script>
 function createMinimalWordFreq() {
     try {
