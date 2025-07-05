@@ -157,16 +157,6 @@ function testWordFreq() {
     
     try {
         
-        // 方法2：直接调用导航的词频处理方法
-        if (window.app?.navigation?.handleWordFrequencyTool) {
-            alert('✅ 方法2：调用导航词频处理...');
-            window.app.navigation.handleWordFrequencyTool({
-                id: 'word-frequency-tool',
-                title: '词频分析',
-                action: 'wordFrequency'
-            });
-            return;
-        }
         
         // 方法3：发送事件
         alert('✅ 方法3：发送词频事件...');
