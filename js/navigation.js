@@ -1332,6 +1332,21 @@ class Navigation {
 
     handleGlobalClick(event) {
         const target = event.target;
+    
+    // 🔧 临时修复：直接检查词频工具点击
+    const wordFreqTool = target.closest('[data-id="word-frequency-tool"]') || 
+                        target.closest('.tools-item');
+    if (wordFreqTool) {
+        console.log('[Navigation] 🔤 直接处理词频工具点击');
+        event.preventDefault();
+        this.handleWordFrequencyTool({
+            id: 'word-frequency-tool',
+            title: '词频分析',
+            action: 'wordFrequency'
+        });
+        return;
+    }
+
         const actionElement = target.closest('[data-action]');
 
         if (!actionElement) {
