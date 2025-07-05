@@ -96,8 +96,8 @@
         </div>
     </div>
         <!-- 临时添加到页面顶部 -->
-<button onclick="testWordFreq()" style="position: fixed; top: 10px; right: 10px; z-index: 9999; background: #007bff; color: white; border: none; padding: 10px; border-radius: 5px;">
-    🔤 测试词频
+    <button onclick="diagnoseWordFreq()" style="position: fixed; top: 110px; right: 10px; z-index: 9999; background: #ffc107; color: black; border: none; padding: 10px; border-radius: 5px;">
+    🔍 诊断词频
 </button>
 
     <!-- 导航栏 - 智能隐藏/显示 -->
@@ -105,7 +105,7 @@
         <!-- 导航内容将由JavaScript动态生成 -->
     </nav>
 </header>
-    
+
     <!-- 主要内容区域 -->
     <main id="content" class="content-area" role="main">
         <!-- 内容将由JavaScript动态加载 -->
@@ -114,6 +114,7 @@
             <p>正在加载导航和内容...</p>
         </div>
     </main>
+    
     
     <!-- 返回顶部按钮 -->
     <button id="back-to-top" class="back-to-top" aria-label="返回顶部" title="返回顶部">
@@ -152,23 +153,53 @@
     <script src="js/core.js" defer></script>
     <!-- JavaScript模块加载 -->
 <script>
-function testWordFreq() {
-    alert('开始测试词频功能...');
+function diagnoseWordFreq() {
+    let step = 1;
     
     try {
+        alert(`步骤${step++}: 检查App实例...`);
+        if (!window.app) {
+            alert('❌ App实例不存在');
+            return;
+        }
         
+        alert(`步骤${step++}: 检查容器...`);
+        const content = document.querySelector('#content');
+        const main = document.querySelector('main');
+        const container = content || main || document.body;
+        if (!container) {
+            alert('❌ 找不到容器');
+            return;
+        }
+        alert(`✅ 找到容器: ${container.tagName}#${container.id}`);
         
-        // 方法3：发送事件
-        alert('✅ 方法3：发送词频事件...');
-        document.dispatchEvent(new CustomEvent('wordFrequencyRequested', {
-            detail: {
-                toolId: 'word-frequency-tool',
-                source: 'manual-test'
+        alert(`步骤${step++}: 检查词频管理器状态...`);
+        const hasManager = !!window.app.wordFreqManager;
+        const isInitialized = window.app.state?.wordFreqInitialized;
+        const hasPromise = !!window.app.wordFreqManagerPromise;
+        alert(`管理器存在: ${hasManager}\n已初始化: ${isInitialized}\n有Promise: ${hasPromise}`);
+        
+        alert(`步骤${step++}: 检查词频类...`);
+        const hasManagerClass = !!window.EnglishSite?.WordFrequencyManager;
+        const hasUIClass = !!window.EnglishSite?.WordFrequencyUI;
+        alert(`管理器类: ${hasManagerClass}\nUI类: ${hasUIClass}`);
+        
+        alert(`步骤${step++}: 检查全局函数...`);
+        const hasGlobalFunc = typeof window.navigateToWordFrequency === 'function';
+        alert(`全局函数: ${hasGlobalFunc}`);
+        
+        if (hasGlobalFunc) {
+            alert(`步骤${step++}: 尝试直接调用全局函数...`);
+            try {
+                const result = window.navigateToWordFrequency();
+                alert(`直接调用结果: ${result}`);
+            } catch (err) {
+                alert(`直接调用失败: ${err.message}`);
             }
-        }));
+        }
         
     } catch (error) {
-        alert('❌ 测试失败: ' + error.message);
+        alert(`诊断在步骤${step}失败: ${error.message}`);
     }
 }
 </script>
