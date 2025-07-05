@@ -156,13 +156,6 @@ function testWordFreq() {
     alert('开始测试词频功能...');
     
     try {
-        // 方法1：使用全局函数
-        if (typeof window.navigateToWordFrequency === 'function') {
-            alert('✅ 方法1：调用全局词频函数...');
-            const result = window.navigateToWordFrequency();
-            alert('结果: ' + result);
-            return;
-        }
         
         // 方法2：直接调用导航的词频处理方法
         if (window.app?.navigation?.handleWordFrequencyTool) {
