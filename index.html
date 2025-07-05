@@ -105,7 +105,15 @@
 <button onclick="checkScripts()" style="position: fixed; top: 210px; right: 10px; z-index: 9999; background: #dc3545; color: white; border: none; padding: 10px; border-radius: 5px;">
     📋 检查脚本
 </button>
-
+<button onclick="checkWordFreqClasses()" style="position: fixed; top: 260px; right: 10px; z-index: 9999; background: #17a2b8; color: white; border: none; padding: 10px; border-radius: 5px;">
+    🔍 检查类
+</button>
+<button onclick="fixWordFreqClasses()" style="position: fixed; top: 310px; right: 10px; z-index: 9999; background: #e83e8c; color: white; border: none; padding: 10px; border-radius: 5px;">
+    🔧 修复类
+</button>
+<button onclick="retryStandalone()" style="position: fixed; top: 360px; right: 10px; z-index: 9999; background: #6f42c1; color: white; border: none; padding: 10px; border-radius: 5px;">
+    🔄 重试独立
+</button>
     <!-- 导航栏 - 智能隐藏/显示 -->
     <nav id="main-nav" class="main-navigation smart-nav" role="navigation" aria-label="主导航">
         <!-- 导航内容将由JavaScript动态生成 -->
@@ -158,6 +166,147 @@
     <!-- 在其他JS文件之前加载 -->
     <script src="js/core.js" defer></script>
     <!-- JavaScript模块加载 -->
+    <script>
+function retryStandalone() {
+    alert('🔄 重新尝试独立模式...');
+    
+    // 确保类存在
+    if (!window.EnglishSite?.WordFrequencyManager) {
+        alert('❌ 管理器类仍然不存在，请先运行"修复类"');
+        return;
+    }
+    
+    if (!window.EnglishSite?.WordFrequencyUI) {
+        alert('❌ UI类不存在');
+        return;
+    }
+    
+    try {
+        const container = document.querySelector('#content');
+        container.innerHTML = '<div style="text-align: center; padding: 50px; background: #f0f8ff;"><h2>🔤 词频分析工具</h2><p>正在启动修复版...</p></div>';
+        
+        // 创建实例
+        const manager = new window.EnglishSite.WordFrequencyManager();
+        const ui = new window.EnglishSite.WordFrequencyUI(container, manager);
+        
+        alert('✅ 实例创建成功，等待初始化...');
+        
+        // 等待初始化
+        manager.waitForReady()
+            .then(() => {
+                alert('✅ 管理器就绪，初始化UI...');
+                return ui.initialize();
+            })
+            .then(() => {
+                alert('🎉 词频工具启动成功！');
+                // 保存到全局以便调试
+                window.wordFreqManager = manager;
+                window.wordFreqUI = ui;
+            })
+            .catch(error => {
+                alert('❌ 初始化失败: ' + error.message);
+                container.innerHTML = `<div style="padding: 20px; color: red;">初始化失败: ${error.message}</div>`;
+            });
+            
+    } catch (error) {
+        alert('❌ 创建实例失败: ' + error.message);
+    }
+}
+</script>
+  
+    <script>
+function fixWordFreqClasses() {
+    try {
+        alert('🔧 尝试手动修复类注册...');
+        
+        // 检查是否有全局类可用
+        if (typeof window.SimplifiedWordFrequencyManager !== 'undefined') {
+            alert('✅ 找到全局SimplifiedWordFrequencyManager，开始修复...');
+            
+            // 手动注册到 EnglishSite
+            window.EnglishSite = window.EnglishSite || {};
+            window.EnglishSite.WordFrequencyManager = window.SimplifiedWordFrequencyManager;
+            
+            alert('✅ 已手动注册WordFrequencyManager类');
+        } else if (typeof window.WordFrequencyManager !== 'undefined') {
+            alert('✅ 找到全局WordFrequencyManager');
+            window.EnglishSite.WordFrequencyManager = window.WordFrequencyManager;
+        } else {
+            alert('❌ 找不到任何词频管理器类');
+            return;
+        }
+        
+        // 检查其他必要的类
+        const requiredClasses = [
+            'SimplifiedWordFrequencyAnalyzer',
+            'SimplifiedWordStemmer', 
+            'WordFrequencyUI',
+            'SimplifiedSearchManager'
+        ];
+        
+        requiredClasses.forEach(className => {
+            if (window[className] && !window.EnglishSite[className]) {
+                window.EnglishSite[className] = window[className];
+                alert(`✅ 已注册 ${className}`);
+            }
+        });
+        
+        // 验证修复结果
+        const hasManager = !!window.EnglishSite.WordFrequencyManager;
+        const hasUI = !!window.EnglishSite.WordFrequencyUI;
+        
+        alert(`修复结果:\n• WordFrequencyManager: ${hasManager ? '✅' : '❌'}\n• WordFrequencyUI: ${hasUI ? '✅' : '❌'}`);
+        
+        if (hasManager && hasUI) {
+            alert('🎉 类修复成功！现在可以尝试独立模式了');
+        }
+        
+    } catch (error) {
+        alert('❌ 修复失败: ' + error.message);
+    }
+}
+</script>
+ <script>
+function checkWordFreqClasses() {
+    alert('🔍 检查词频相关类...');
+    
+    // 检查 EnglishSite 对象的内容
+    const englishSite = window.EnglishSite || {};
+    const keys = Object.keys(englishSite);
+    
+    alert(`EnglishSite 包含的类:\n${keys.join('\n')}`);
+    
+    // 检查具体的词频相关类
+    const checks = {
+        'WordFrequencyManager': !!englishSite.WordFrequencyManager,
+        'SimplifiedWordFrequencyManager': !!window.SimplifiedWordFrequencyManager,
+        'WordFrequencyUI': !!englishSite.WordFrequencyUI,
+        'SimplifiedWordFrequencyAnalyzer': !!englishSite.SimplifiedWordFrequencyAnalyzer,
+        'SimplifiedWordStemmer': !!englishSite.SimplifiedWordStemmer
+    };
+    
+    let result = '类检查结果:\n';
+    for (const [name, exists] of Object.entries(checks)) {
+        result += `• ${name}: ${exists ? '✅' : '❌'}\n`;
+    }
+    
+    alert(result);
+    
+    // 检查是否有全局的词频类（可能没有正确导出）
+    const globalChecks = {
+        'window.SimplifiedWordFrequencyManager': typeof window.SimplifiedWordFrequencyManager,
+        'window.WordFrequencyUI': typeof window.WordFrequencyUI,
+        'window.SimplifiedWordFrequencyAnalyzer': typeof window.SimplifiedWordFrequencyAnalyzer
+    };
+    
+    let globalResult = '全局类检查:\n';
+    for (const [name, type] of Object.entries(globalChecks)) {
+        globalResult += `• ${name}: ${type}\n`;
+    }
+    
+    alert(globalResult);
+}
+</script>
     <script>
 function checkScripts() {
     const scripts = document.querySelectorAll('script[src]');
