@@ -1,15 +1,205 @@
 {
-  "name": "Learner",
-  "short_name": "Reader",
-  "start_url": "/",
-  "display": "standalone",
-  "theme_color": "#ffffff",
-  "background_color": "#ffffff",
-  "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
+  "name": "learner-platform",
+  "version": "1.0.0",
+  "description": "英语学习平台 - 完整商业化版本 | Learner Platform - Complete Commercial Version",
+  "type": "module",
+  "main": "src/core/app.js",
+  "scripts": {
+    "dev": "vite --host --port 3000",
+    "build": "vite build",
+    "build:prod": "vite build --mode production",
+    "preview": "vite preview --port 4173",
+    "serve": "vite preview --host --port 4173",
+    "lint": "eslint src --ext .js,.jsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint src --ext .js,.jsx --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx,css,md}\"",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:integration": "playwright test",
+    "deploy": "npm run build:prod && npm run deploy:netlify",
+    "deploy:netlify": "netlify deploy --prod --dir dist",
+    "deploy:github": "npm run build:prod && gh-pages -d dist",
+    "deploy:firebase": "npm run build:prod && firebase deploy",
+    "pwa:generate-icons": "node tools/generate-pwa-icons.js",
+    "analyze": "npm run build && npx vite-bundle-analyzer dist",
+    "clean": "rimraf dist .vite node_modules/.cache",
+    "clean:full": "rimraf dist .vite node_modules",
+    "prepare": "husky install",
+    "postinstall": "npm run pwa:generate-icons",
+    "start": "npm run dev"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1",
+    "stripe": "^14.9.0",
+    "@stripe/stripe-js": "^2.4.0",
+    "workbox-window": "^7.0.0",
+    "idb": "^7.1.1",
+    "fuse.js": "^7.0.0",
+    "chart.js": "^4.4.1",
+    "date-fns": "^3.0.6",
+    "uuid": "^9.0.1",
+    "dompurify": "^3.0.7",
+    "marked": "^12.0.0",
+    "highlight.js": "^11.9.0",
+    "lodash-es": "^4.17.21"
+  },
+  "devDependencies": {
+    "vite": "^5.0.8",
+    "vite-plugin-pwa": "^0.17.4",
+    "vite-plugin-eslint": "^1.8.1",
+    "@vitejs/plugin-legacy": "^5.2.0",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.1.1",
+    "vitest": "^1.1.0",
+    "@vitest/ui": "^1.1.0",
+    "@vitest/coverage-v8": "^1.1.0",
+    "@playwright/test": "^1.40.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "rimraf": "^5.0.5",
+    "gh-pages": "^6.1.1",
+    "netlify-cli": "^17.15.0",
+    "firebase-tools": "^13.0.2",
+    "terser": "^5.26.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "cssnano": "^6.0.2",
+    "vite-bundle-analyzer": "^0.7.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "english-learning",
+    "education",
+    "pwa",
+    "firebase",
+    "stripe",
+    "commercial",
+    "subscription",
+    "vue-alternative",
+    "vanilla-js",
+    "learner-platform"
+  ],
+  "author": {
+    "name": "Learner Platform Team",
+    "email": "contact@learner-platform.com",
+    "url": "https://learner-platform.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/learner-platform.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/learner-platform/issues"
+  },
+  "homepage": "https://learner-platform.netlify.app",
+  "lint-staged": {
+    "src/**/*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write",
+      "git add"
+    ],
+    "src/**/*.{css,md}": [
+      "prettier --write",
+      "git add"
+    ],
+    "*.{json,yml,yaml}": [
+      "prettier --write",
+      "git add"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": "npm run test && npm run lint"
     }
-  ]
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "pwa": {
+    "name": "Learner Platform",
+    "short_name": "Learner",
+    "description": "Professional English Learning Platform with AI-powered features",
+    "theme_color": "#007bff",
+    "background_color": "#ffffff",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "start_url": "/",
+    "categories": ["education", "productivity", "lifestyle"],
+    "screenshots": [
+      {
+        "src": "screenshots/desktop.png",
+        "sizes": "1280x720",
+        "type": "image/png",
+        "form_factor": "wide"
+      },
+      {
+        "src": "screenshots/mobile.png", 
+        "sizes": "640x1136",
+        "type": "image/png",
+        "form_factor": "narrow"
+      }
+    ]
+  },
+  "buildOptions": {
+    "target": [
+      "es2020",
+      "edge88",
+      "firefox78", 
+      "chrome87",
+      "safari14"
+    ],
+    "sourcemap": false,
+    "minify": "terser",
+    "chunkSizeWarningLimit": 1000,
+    "assetsInlineLimit": 4096
+  },
+  "deployment": {
+    "primary": "netlify",
+    "backup": "github-pages",
+    "cdn": "cloudflare",
+    "analytics": "google-analytics-4"
+  },
+  "firebase": {
+    "projects": {
+      "default": "learner-platform",
+      "development": "learner-platform-dev",
+      "production": "learner-platform-prod"
+    }
+  },
+  "stripe": {
+    "webhookEndpoint": "/api/stripe/webhook",
+    "products": {
+      "premium": "Premium Subscription",
+      "enterprise": "Enterprise Solution"
+    }
+  },
+  "features": {
+    "pwa": true,
+    "offline": true,
+    "analytics": true,
+    "authentication": true,
+    "payments": true,
+    "wordFrequency": true,
+    "audioSync": true,
+    "glossary": true,
+    "darkMode": true,
+    "multiLanguage": false
+  }
 }
