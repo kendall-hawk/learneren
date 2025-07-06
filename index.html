@@ -228,6 +228,7 @@ function loadDebugTool() {
 }
     </script>
     
+    
     <!-- 核心基础设施（必须最先加载） -->
     
     <!-- 功能模块（按依赖顺序加载） -->
@@ -242,6 +243,14 @@ function loadDebugTool() {
     <script src="js/word-highlight.js" defer></script>
     
     <!-- 主应用（最后加载） -->
-    <script src="js/main.js" defer></script>
+<!-- <script src="js/main.js"></script> -->
+
+<!-- 替换为优化版本 -->
+<script type="module" src="js/main-optimized.js"></script>
+<script nomodule>
+    // 降级到原版本
+    document.write('<script src="js/main.js"><\/script>');
+</script>
+    
 </body>
 </html>
