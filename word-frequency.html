@@ -1,880 +1,205 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>词频统计分析</title>
-    <meta name="description" content="全站英文词汇频次统计分析，支持智能搜索和精确搜索">
-    <meta name="keywords" content="词频统计,英语学习,词汇分析,单词频次">
-    
-    <!-- 基础样式 -->
- 
-    
-    <!-- 🎯 手机调试样式 - 内联关键CSS -->
-    <style>
-        /* 手机调试面板 */
-        .mobile-debug {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(220, 53, 69, 0.95);
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            font-size: 11px;
-            line-height: 1.3;
-            z-index: 99999;
-            max-width: 200px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            backdrop-filter: blur(10px);
-        }
-        
-        .mobile-debug.success {
-            background: rgba(40, 167, 69, 0.95);
-        }
-        
-        .mobile-debug.warning {
-            background: rgba(255, 193, 7, 0.95);
-            color: #333;
-        }
-        
-        .mobile-debug-item {
-            display: flex;
-            justify-content: space-between;
-            margin: 2px 0;
-            padding: 2px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.2);
-        }
-        
-        .mobile-debug-item:last-child {
-            border-bottom: none;
-        }
-        
-        .mobile-debug-toggle {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            background: rgba(108, 117, 125, 0.9);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 10px;
-            cursor: pointer;
-            z-index: 99998;
-            font-family: monospace;
-        }
-        
-        /* 页面加载状态 */
-        .page-loading {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(255, 255, 255, 0.95);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 10000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
-        
-        .page-loading-content {
-            text-align: center;
-            max-width: 400px;
-            padding: 40px 20px;
-        }
-        
-        .page-loading h2 {
-            color: #2c3e50;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-        }
-        
-        .page-loading-spinner {
-            width: 40px;
-            height: 40px;
-            margin: 0 auto 20px;
-            border: 3px solid #e9ecef;
-            border-top: 3px solid #007bff;
-            border-radius: 50%;
-            animation: pageLoadSpin 1s linear infinite;
-        }
-        
-        @keyframes pageLoadSpin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .page-loading-text {
-            color: #6c757d;
-            font-size: 14px;
-            margin-bottom: 10px;
-            min-height: 20px;
-        }
-        
-        .page-loading-progress {
-            font-size: 12px;
-            color: #007bff;
-            font-weight: 500;
-        }
-        
-        .loading-progress-bar {
-            width: 280px;
-            height: 6px;
-            background: #e9ecef;
-            border-radius: 3px;
-            margin: 15px auto;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        .loading-progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #007bff, #28a745);
-            width: 0%;
-            transition: width 0.4s ease;
-            border-radius: 3px;
-        }
-        
-        /* 错误状态样式 */
-        .page-loading.error {
-            background: rgba(248, 215, 218, 0.95);
-        }
-        
-        .page-loading.error .page-loading-spinner {
-            border-top-color: #dc3545;
-            animation-duration: 2s;
-        }
-        
-        .page-loading.error h2 {
-            color: #721c24;
-        }
-        
-        .error-details {
-            background: rgba(220, 53, 69, 0.1);
-            border: 1px solid rgba(220, 53, 69, 0.3);
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
-            text-align: left;
-            font-size: 12px;
-            color: #721c24;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        
-        .error-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 20px;
-        }
-        
-        .error-btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .error-btn-primary {
-            background: linear-gradient(135deg, #007bff, #0056b3);
-            color: white;
-        }
-        
-        .error-btn-primary:hover {
-            background: linear-gradient(135deg, #0056b3, #004085);
-            transform: translateY(-1px);
-        }
-        
-        /* 基础布局 */
-        body {
-            margin: 0;
-            padding: 0;
-            background: #f8f9fa;
-            min-height: 100vh;
-        }
-        
-        .page-container {
-            min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 20px 0;
-        }
-        
-        .content-wrapper {
-            background: white;
-            margin: 0 auto;
-            max-width: 1400px;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            min-height: calc(100vh - 40px);
-        }
-        
-        .top-nav {
-            background: #2c3e50;
-            color: white;
-            padding: 15px 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        
-        .nav-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin: 0;
-        }
-        
-        .nav-links {
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .nav-link {
-            color: #ecf0f1;
-            text-decoration: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            transition: background-color 0.3s;
-            font-size: 14px;
-        }
-        
-        .nav-link:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-        }
-        
-        .nav-link.active {
-            background: #3498db;
-            color: white;
-        }
-        
-        /* 隐藏类 */
-        .hidden {
-            display: none !important;
-        }
-        
-        /* 移动端适配 */
-        @media (max-width: 768px) {
-            .page-container {
-                padding: 10px;
-            }
-            
-            .content-wrapper {
-                border-radius: 8px;
-                min-height: calc(100vh - 20px);
-            }
-            
-            .top-nav {
-                padding: 15px 20px;
-                flex-direction: column;
-                text-align: center;
-            }
-            
-            .nav-title {
-                font-size: 1.1rem;
-            }
-            
-            .nav-links {
-                justify-content: center;
-            }
-            
-            .loading-progress-bar {
-                width: 220px;
-            }
-            
-            .mobile-debug {
-                font-size: 10px;
-                max-width: 150px;
-                padding: 8px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- 🎯 手机调试面板 -->
-    <button class="mobile-debug-toggle" id="debug-toggle" onclick="toggleMobileDebug()" title="切换调试信息">DEBUG</button>
-    
-    <div class="mobile-debug" id="mobile-debug" style="display: none;">
-        <div style="font-weight: bold; margin-bottom: 8px; text-align: center;">🔧 系统状态</div>
-        <div class="mobile-debug-item">
-            <span>脚本加载:</span>
-            <span id="debug-scripts">❓</span>
-        </div>
-        <div class="mobile-debug-item">
-            <span>管理器:</span>
-            <span id="debug-manager">❓</span>
-        </div>
-        <div class="mobile-debug-item">
-            <span>初始化:</span>
-            <span id="debug-init">❓</span>
-        </div>
-        <div class="mobile-debug-item">
-            <span>数据量:</span>
-            <span id="debug-data">❓</span>
-        </div>
-        <div class="mobile-debug-item">
-            <span>搜索状态:</span>
-            <span id="debug-search">❓</span>
-        </div>
-        <div class="mobile-debug-item">
-            <span>最后错误:</span>
-            <span id="debug-error">无</span>
-        </div>
-        <div style="margin-top: 8px; text-align: center;">
-            <button onclick="forceReinitialize()" style="background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 9px;">重新初始化</button>
-        </div>
-    </div>
-
-    <!-- 🎯 页面加载指示器 -->
-    <div class="page-loading" id="page-loading">
-        <div class="page-loading-content">
-            <h2 id="page-loading-title">📊 词频统计</h2>
-            <div class="page-loading-spinner" id="page-loading-spinner"></div>
-            <div class="page-loading-text" id="page-loading-text">正在初始化系统...</div>
-            <div class="loading-progress-bar">
-                <div class="loading-progress-fill" id="page-loading-progress-fill"></div>
-            </div>
-            <div class="page-loading-progress" id="page-loading-progress">0%</div>
-            
-            <!-- 🎯 错误详情显示 -->
-            <div class="error-details" id="error-details" style="display: none;">
-                <strong>错误详情：</strong>
-                <pre id="error-details-content"></pre>
-            </div>
-            
-            <!-- 🎯 错误操作按钮 -->
-            <div class="error-actions" id="error-actions" style="display: none;">
-                <!-- 动态生成错误操作按钮 -->
-            </div>
-        </div>
-    </div>
-
-    <!-- 主要内容容器 -->
-    <div class="page-container">
-        <div class="content-wrapper">
-            <!-- 顶部导航 -->
-            <nav class="top-nav">
-                <h1 class="nav-title">📊 词频统计分析</h1>
-                <div class="nav-links">
-                    <a href="index.html" class="nav-link">🏠 首页</a>
-                    <a href="#" class="nav-link active">📊 词频统计</a>
-                    <a href="javascript:void(0)" class="nav-link" onclick="showHelp()">❓ 帮助</a>
-                </div>
-            </nav>
-
-            <!-- 词频统计主容器 -->
-            <div id="word-frequency-container"></div>
-        </div>
-    </div>
-
-    <!-- 🎯 帮助模态框 -->
-    <div id="help-modal" style="display: none;">
-        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 20000; display: flex; justify-content: center; align-items: center; padding: 20px;">
-            <div style="background: white; border-radius: 12px; padding: 30px; max-width: 600px; width: 100%; max-height: 80vh; overflow-y: auto;">
-                <h3 style="margin-top: 0; color: #2c3e50;">📖 使用帮助</h3>
-                <div style="line-height: 1.6; color: #495057;">
-                    <p><strong>🚀 双模式搜索</strong><br>
-                    本工具提供两种搜索模式来满足不同的查找需求：</p>
-                    
-                    <p><strong>🧠 智能搜索模式：</strong><br>
-                    基于词根合并，搜索"take"会找到take、takes、took、taken等所有相关变形词的合并结果。适合学习词汇变化和语法规律。</p>
-                    
-                    <p><strong>🎯 精确搜索模式：</strong><br>
-                    基于原文匹配，搜索"taken"只会找到包含确切单词"taken"的文章。适合查找特定用法和语境。</p>
-                    
-                    <p><strong>🔍 如何使用：</strong></p>
-                    <ul style="padding-left: 20px;">
-                        <li><strong>搜索框：</strong> 输入要查找的英文单词</li>
-                        <li><strong>模式切换：</strong> 点击"智能搜索"或"精确搜索"切换模式</li>
-                        <li><strong>查看结果：</strong> 支持词云和列表两种显示方式</li>
-                        <li><strong>单词详情：</strong> 点击单词查看详细信息和出现文章</li>
-                        <li><strong>文章跳转：</strong> 点击文章标题直接跳转并高亮单词</li>
-                    </ul>
-                    
-                    <p><strong>💡 搜索技巧：</strong></p>
-                    <ul style="padding-left: 20px;">
-                        <li>使用智能搜索学习词汇变化：如搜索"go"了解go/goes/went/gone</li>
-                        <li>使用精确搜索查找特定形式：如搜索"went"只看过去式用法</li>
-                        <li>支持3-20个字符的英文单词搜索</li>
-                        <li>搜索结果按相关性和频次排序</li>
-                    </ul>
-                    
-                    <p><strong>📱 移动端提示：</strong><br>
-                    点击右上角"DEBUG"按钮可查看系统状态，帮助诊断问题。</p>
-                </div>
-                <button onclick="hideHelp()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-top: 20px; width: 100%;">
-                    知道了
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 🎯 核心脚本文件 -->
-    <script src="js/core.js"></script>
-    <script src="js/navigation.js" defer></script>
-     <script src="js/main.js" defer></script>
-    <script src="js/word-frequency.js" defer></script>
-    <script src="js/word-frequency-ui.js" defer></script>
-    
-    
-    <!-- 🎯 主应用脚本 - 完全重构初始化流程 -->
-    <script>
-        // 🎯 全局变量
-        let wordFreqManager = null;
-        let wordFreqUI = null;
-        let initializationStartTime = Date.now();
-        let mobileDebugVisible = false;
-        let debugUpdateInterval = null;
-        let lastKnownError = null;
-
-        // 🎯 手机调试管理器
-        const MobileDebugger = {
-            isVisible: false,
-            updateInterval: null,
-            
-            toggle() {
-                this.isVisible = !this.isVisible;
-                const panel = document.getElementById('mobile-debug');
-                const toggle = document.getElementById('debug-toggle');
-                
-                if (this.isVisible) {
-                    panel.style.display = 'block';
-                    toggle.textContent = 'HIDE';
-                    toggle.style.background = 'rgba(220, 53, 69, 0.9)';
-                    this.startUpdating();
-                } else {
-                    panel.style.display = 'none';
-                    toggle.textContent = 'DEBUG';
-                    toggle.style.background = 'rgba(108, 117, 125, 0.9)';
-                    this.stopUpdating();
-                }
-            },
-            
-            startUpdating() {
-                this.update();
-                this.updateInterval = setInterval(() => {
-                    this.update();
-                }, 1000);
-            },
-            
-            stopUpdating() {
-                if (this.updateInterval) {
-                    clearInterval(this.updateInterval);
-                    this.updateInterval = null;
-                }
-            },
-            
-            update() {
-                try {
-                    // 检查脚本加载状态
-                    const scriptsOK = window.EnglishSite && 
-                                     window.EnglishSite.WordFrequencyManager && 
-                                     window.EnglishSite.WordFrequencyUI;
-                    this.updateElement('debug-scripts', scriptsOK ? '✅' : '❌');
-                    
-                    // 检查管理器状态
-                    const managerOK = wordFreqManager !== null;
-                    this.updateElement('debug-manager', managerOK ? '✅' : '❌');
-                    
-                    // 检查初始化状态
-                    const initOK = wordFreqManager?.isInitialized === true;
-                    const initInProgress = wordFreqManager?.isInitializing === true;
-                    const initStatus = initOK ? '✅' : (initInProgress ? '⏳' : '❌');
-                    this.updateElement('debug-init', initStatus);
-                    
-                    // 检查数据量
-                    const dataSize = wordFreqManager?.analyzer?.wordStats?.size || 0;
-                    this.updateElement('debug-data', dataSize.toString());
-                    
-                    // 检查搜索状态
-                    const searchOK = wordFreqUI?.searchManager ? '✅' : '❌';
-                    this.updateElement('debug-search', searchOK);
-                    
-                    // 显示最后错误
-                    if (lastKnownError) {
-                        this.updateElement('debug-error', lastKnownError.substring(0, 20) + '...');
-                    }
-                    
-                    // 更新面板颜色
-                    const panel = document.getElementById('mobile-debug');
-                    if (initOK && dataSize > 0) {
-                        panel.className = 'mobile-debug success';
-                    } else if (initInProgress) {
-                        panel.className = 'mobile-debug warning';
-                    } else {
-                        panel.className = 'mobile-debug';
-                    }
-                    
-                } catch (error) {
-                    console.error('调试信息更新失败:', error);
-                }
-            },
-            
-            updateElement(id, value) {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.textContent = value;
-                }
-            }
-        };
-
-        // 🎯 页面加载管理器
-        const PageLoader = {
-            currentProgress: 0,
-            
-            updateProgress(progress, text = '') {
-                this.currentProgress = progress;
-                
-                const progressFill = document.getElementById('page-loading-progress-fill');
-                const progressText = document.getElementById('page-loading-progress');
-                const loadingText = document.getElementById('page-loading-text');
-                
-                if (progressFill) {
-                    progressFill.style.width = `${progress}%`;
-                }
-                if (progressText) {
-                    progressText.textContent = `${progress}%`;
-                }
-                if (text && loadingText) {
-                    loadingText.textContent = text;
-                }
-            },
-            
-            hide() {
-                const loader = document.getElementById('page-loading');
-                if (loader) {
-                    loader.style.opacity = '0';
-                    setTimeout(() => {
-                        loader.style.display = 'none';
-                    }, 300);
-                }
-            },
-            
-            showError(title, message, actions = [], errorDetails = null) {
-                const loader = document.getElementById('page-loading');
-                const titleEl = document.getElementById('page-loading-title');
-                const spinner = document.getElementById('page-loading-spinner');
-                const textEl = document.getElementById('page-loading-text');
-                const detailsEl = document.getElementById('error-details');
-                const detailsContent = document.getElementById('error-details-content');
-                const actionsEl = document.getElementById('error-actions');
-                
-                if (loader) {
-                    loader.classList.add('error');
-                }
-                
-                if (titleEl) {
-                    titleEl.textContent = title;
-                }
-                
-                if (spinner) {
-                    spinner.style.display = 'none';
-                }
-                
-                if (textEl) {
-                    textEl.textContent = message;
-                }
-                
-                if (errorDetails && detailsEl && detailsContent) {
-                    detailsContent.textContent = errorDetails;
-                    detailsEl.style.display = 'block';
-                }
-                
-                if (actionsEl && actions.length > 0) {
-                    actionsEl.innerHTML = actions.map(action => 
-                        `<button class="error-btn ${action.type}" onclick="${action.onclick}">
-                            ${action.text}
-                        </button>`
-                    ).join('');
-                    actionsEl.style.display = 'flex';
-                }
-                
-                // 记录错误到调试器
-                lastKnownError = message;
-            }
-        };
-
-        // 🎯 错误处理函数
-        function handleReload() {
-            location.reload();
-        }
-
-        function handleGoHome() {
-            window.location.href = 'index.html';
-        }
-
-        function showHelp() {
-            document.getElementById('help-modal').style.display = 'block';
-            document.body.style.overflow = 'hidden';
-        }
-
-        function hideHelp() {
-            document.getElementById('help-modal').style.display = 'none';
-            document.body.style.overflow = '';
-        }
-
-        function toggleMobileDebug() {
-            MobileDebugger.toggle();
-        }
-
-        // 🎯 强制重新初始化
-        function forceReinitialize() {
-            console.log('🔄 强制重新初始化...');
-            
-            // 清理现有实例
-            if (wordFreqUI && typeof wordFreqUI.destroy === 'function') {
-                wordFreqUI.destroy();
-                wordFreqUI = null;
-            }
-            
-            if (wordFreqManager && typeof wordFreqManager.destroy === 'function') {
-                wordFreqManager.destroy();
-                wordFreqManager = null;
-            }
-            
-            // 清理缓存
-            try {
-                sessionStorage.clear();
-                if (window.EnglishSite?.CacheManager) {
-                    window.EnglishSite.CacheManager.clear();
-                }
-            } catch (error) {
-                console.warn('清理缓存失败:', error);
-            }
-            
-            // 重新加载页面
-            setTimeout(() => {
-                location.reload();
-            }, 500);
-        }
-
-        // 🎯 主初始化函数 - 完全重构，专注解决搜索问题
-        async function initializeWordFrequencyPage() {
-            const initStartTime = Date.now();
-            
-            try {
-                console.log('🚀 开始初始化词频统计页面...');
-                
-                PageLoader.updateProgress(10, '检查脚本加载状态...');
-                
-                // 🎯 步骤1: 验证脚本加载
-                let attempts = 0;
-                const maxAttempts = 50; // 5秒超时
-                
-                while (attempts < maxAttempts) {
-                    if (window.EnglishSite?.WordFrequencyManager && window.EnglishSite?.WordFrequencyUI) {
-                        console.log('✅ 核心脚本已加载');
-                        break;
-                    }
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    attempts++;
-                }
-                
-                if (attempts >= maxAttempts) {
-                    throw new Error('核心脚本加载超时，请检查网络连接');
-                }
-                
-                PageLoader.updateProgress(20, '创建词频管理器...');
-                
-                // 🎯 步骤2: 创建管理器
-                console.log('📊 创建词频管理器...');
-                wordFreqManager = new window.EnglishSite.WordFrequencyManager();
-                
-                if (!wordFreqManager) {
-                    throw new Error('词频管理器创建失败');
-                }
-                
-                PageLoader.updateProgress(30, '验证容器元素...');
-                
-                // 🎯 步骤3: 验证容器
-                const container = document.getElementById('word-frequency-container');
-                if (!container) {
-                    throw new Error('容器元素 #word-frequency-container 未找到');
-                }
-                
-                PageLoader.updateProgress(40, '创建用户界面...');
-                
-                // 🎯 步骤4: 创建UI
-                console.log('🎨 创建用户界面...');
-                wordFreqUI = new window.EnglishSite.WordFrequencyUI(container, wordFreqManager);
-                
-                if (!wordFreqUI) {
-                    throw new Error('用户界面创建失败');
-                }
-                
-                PageLoader.updateProgress(50, '等待数据初始化...');
-                
-                // 🎯 步骤5: 等待数据初始化完成
-                console.log('⏳ 等待数据初始化...');
-                
-                // 🎯 增强的等待逻辑 - 定期检查状态
-                const waitStartTime = Date.now();
-                const maxWaitTime = 60000; // 60秒
-                
-                while (Date.now() - waitStartTime < maxWaitTime) {
-                    PageLoader.updateProgress(
-                        50 + Math.min(45, (Date.now() - waitStartTime) / maxWaitTime * 45),
-                        '正在分析文章内容...'
-                    );
-                    
-                    // 检查初始化状态
-                    if (wordFreqManager.isInitialized) {
-                        console.log('✅ 数据初始化完成');
-                        break;
-                    }
-                    
-                    // 检查错误状态
-                    if (wordFreqManager.initializationError) {
-                        throw wordFreqManager.initializationError;
-                    }
-                    
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                }
-                
-                // 🎯 验证数据加载
-                const dataSize = wordFreqManager.analyzer?.wordStats?.size || 0;
-                console.log(`📊 数据验证: ${dataSize} 个单词`);
-                
-                if (dataSize === 0) {
-                    console.warn('⚠️ 数据为空，尝试强制初始化...');
-                    
-                    // 🎯 强制创建测试数据
-                    await createTestData();
-                }
-                
-                PageLoader.updateProgress(95, '初始化用户界面...');
-                
-                // 🎯 步骤6: 初始化UI
-                console.log('🔗 初始化用户界面...');
-                await wordFreqUI.initialize();
-                
-                PageLoader.updateProgress(100, '初始化完成！');
-                
-                const initTime = ((Date.now() - initStartTime) / 1000).toFixed(1);
-                console.log(`✅ 词频统计页面初始化完成，耗时 ${initTime}s`);
-                
-                // 🎯 最终验证
-                const finalDataSize = wordFreqManager.analyzer?.wordStats?.size || 0;
-                console.log(`🎯 最终数据验证: ${finalDataSize} 个单词可供搜索`);
-                
-                if (finalDataSize === 0) {
-                    throw new Error('数据加载失败：无单词数据可供搜索');
-                }
-                
-                setTimeout(() => {
-                    PageLoader.hide();
-                }, 600);
-                
-                console.log('🎉 系统就绪，搜索功能可用！');
-
-            } catch (error) {
-                console.error('❌ 词频统计页面初始化失败:', error);
-                
-                // 记录错误
-                lastKnownError = error.message;
-                
-                // 显示详细错误信息
-                PageLoader.showError(
-                    '🚫 初始化失败', 
-                    error.message || '页面初始化时遇到了问题',
-                    [
-                        { text: '🔄 重新加载', type: 'error-btn-primary', onclick: 'handleReload()' },
-                        { text: '🏠 返回首页', type: 'error-btn-primary', onclick: 'handleGoHome()' }
-                    ],
-                    `错误详情:\n${error.stack || error.message}`
-                );
-            }
-        }
-
-        // 🎯 创建测试数据 - 确保有数据可供搜索
-        async function createTestData() {
-            console.log('🧪 创建测试数据...');
-            
-            try {
-                const testArticles = [
-                    {
-                        id: 'test-article-1',
-                        title: 'English Learning Basics',
-                        content: 'Learning English requires practice and dedication. Students should take time to study grammar rules, vocabulary words, and pronunciation patterns. Taking notes helps remember important concepts. The teacher takes great care to explain difficult topics clearly.'
-                    },
-                    {
-                        id: 'test-article-2', 
-                        title: 'Grammar Fundamentals',
-                        content: 'Grammar forms the foundation of good writing. Understanding verb tenses, noun usage, and sentence structure is essential. Practice makes perfect when learning grammatical rules. Students practice daily to improve their skills.'
-                    },
-                    {
-                        id: 'test-article-3',
-                        title: 'Vocabulary Building',
-                        content: 'Building vocabulary is crucial for language success. Reading books, studying word lists, and using new words in context helps expand knowledge. Words have different meanings in different contexts. Students learn new words every day through reading and practice.'
-                    }
-                ];
-                
-                // 直接调用分析器分析测试文章
-                for (const article of testArticles) {
-                    wordFreqManager.analyzer.analyzeArticle(article.id, article.content, article.title);
-                }
-                
-                const testDataSize = wordFreqManager.analyzer.wordStats.size;
-                console.log(`✅ 测试数据创建完成: ${testDataSize} 个单词`);
-                
-                return testDataSize > 0;
-                
-            } catch (error) {
-                console.error('❌ 测试数据创建失败:', error);
-                return false;
-            }
-        }
-
-        // 🎯 进度事件监听
-        document.addEventListener('wordFreqProgress', (e) => {
-            const progress = e.detail.progress;
-            const currentBase = Math.min(PageLoader.currentProgress, 50);
-            const adjustedProgress = currentBase + (progress * 0.45); // 为初始化进度留出空间
-            PageLoader.updateProgress(adjustedProgress, '正在分析文章内容...');
-        });
-
-        // 🎯 全局错误处理
-        window.addEventListener('error', (e) => {
-            console.error('🚨 全局错误:', e.error);
-            lastKnownError = e.error?.message || '未知错误';
-        });
-
-        window.addEventListener('unhandledrejection', (e) => {
-            console.error('🚨 未处理的Promise错误:', e.reason);
-            lastKnownError = e.reason?.message || e.reason || '异步操作错误';
-        });
-
-        // 🎯 页面卸载清理
-        window.addEventListener('beforeunload', () => {
-            if (wordFreqManager && typeof wordFreqManager.destroy === 'function') {
-                wordFreqManager.destroy();
-            }
-            if (wordFreqUI && typeof wordFreqUI.destroy === 'function') {
-                wordFreqUI.destroy();
-            }
-            MobileDebugger.stopUpdating();
-        });
-
-        // 🎯 DOM加载完成后启动
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                initializeWordFrequencyPage();
-            });
-        } else {
-            initializeWordFrequencyPage();
-        }
-    </script>
-</body>
-</html>
+{
+  "name": "learner-platform",
+  "version": "1.0.0",
+  "description": "英语学习平台 - 完整商业化版本 | Learner Platform - Complete Commercial Version",
+  "type": "module",
+  "main": "src/core/app.js",
+  "scripts": {
+    "dev": "vite --host --port 3000",
+    "build": "vite build",
+    "build:prod": "vite build --mode production",
+    "preview": "vite preview --port 4173",
+    "serve": "vite preview --host --port 4173",
+    "lint": "eslint src --ext .js,.jsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint src --ext .js,.jsx --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx,css,md}\"",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:integration": "playwright test",
+    "deploy": "npm run build:prod && npm run deploy:netlify",
+    "deploy:netlify": "netlify deploy --prod --dir dist",
+    "deploy:github": "npm run build:prod && gh-pages -d dist",
+    "deploy:firebase": "npm run build:prod && firebase deploy",
+    "pwa:generate-icons": "node tools/generate-pwa-icons.js",
+    "analyze": "npm run build && npx vite-bundle-analyzer dist",
+    "clean": "rimraf dist .vite node_modules/.cache",
+    "clean:full": "rimraf dist .vite node_modules",
+    "prepare": "husky install",
+    "postinstall": "npm run pwa:generate-icons",
+    "start": "npm run dev"
+  },
+  "dependencies": {
+    "firebase": "^10.7.1",
+    "stripe": "^14.9.0",
+    "@stripe/stripe-js": "^2.4.0",
+    "workbox-window": "^7.0.0",
+    "idb": "^7.1.1",
+    "fuse.js": "^7.0.0",
+    "chart.js": "^4.4.1",
+    "date-fns": "^3.0.6",
+    "uuid": "^9.0.1",
+    "dompurify": "^3.0.7",
+    "marked": "^12.0.0",
+    "highlight.js": "^11.9.0",
+    "lodash-es": "^4.17.21"
+  },
+  "devDependencies": {
+    "vite": "^5.0.8",
+    "vite-plugin-pwa": "^0.17.4",
+    "vite-plugin-eslint": "^1.8.1",
+    "@vitejs/plugin-legacy": "^5.2.0",
+    "eslint": "^8.55.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.1.1",
+    "vitest": "^1.1.0",
+    "@vitest/ui": "^1.1.0",
+    "@vitest/coverage-v8": "^1.1.0",
+    "@playwright/test": "^1.40.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "rimraf": "^5.0.5",
+    "gh-pages": "^6.1.1",
+    "netlify-cli": "^17.15.0",
+    "firebase-tools": "^13.0.2",
+    "terser": "^5.26.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "cssnano": "^6.0.2",
+    "vite-bundle-analyzer": "^0.7.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "keywords": [
+    "english-learning",
+    "education",
+    "pwa",
+    "firebase",
+    "stripe",
+    "commercial",
+    "subscription",
+    "vue-alternative",
+    "vanilla-js",
+    "learner-platform"
+  ],
+  "author": {
+    "name": "Learner Platform Team",
+    "email": "contact@learner-platform.com",
+    "url": "https://learner-platform.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/learner-platform.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/learner-platform/issues"
+  },
+  "homepage": "https://learner-platform.netlify.app",
+  "lint-staged": {
+    "src/**/*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write",
+      "git add"
+    ],
+    "src/**/*.{css,md}": [
+      "prettier --write",
+      "git add"
+    ],
+    "*.{json,yml,yaml}": [
+      "prettier --write",
+      "git add"
+    ]
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "pre-push": "npm run test && npm run lint"
+    }
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "pwa": {
+    "name": "Learner Platform",
+    "short_name": "Learner",
+    "description": "Professional English Learning Platform with AI-powered features",
+    "theme_color": "#007bff",
+    "background_color": "#ffffff",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "start_url": "/",
+    "categories": ["education", "productivity", "lifestyle"],
+    "screenshots": [
+      {
+        "src": "screenshots/desktop.png",
+        "sizes": "1280x720",
+        "type": "image/png",
+        "form_factor": "wide"
+      },
+      {
+        "src": "screenshots/mobile.png", 
+        "sizes": "640x1136",
+        "type": "image/png",
+        "form_factor": "narrow"
+      }
+    ]
+  },
+  "buildOptions": {
+    "target": [
+      "es2020",
+      "edge88",
+      "firefox78", 
+      "chrome87",
+      "safari14"
+    ],
+    "sourcemap": false,
+    "minify": "terser",
+    "chunkSizeWarningLimit": 1000,
+    "assetsInlineLimit": 4096
+  },
+  "deployment": {
+    "primary": "netlify",
+    "backup": "github-pages",
+    "cdn": "cloudflare",
+    "analytics": "google-analytics-4"
+  },
+  "firebase": {
+    "projects": {
+      "default": "learner-platform",
+      "development": "learner-platform-dev",
+      "production": "learner-platform-prod"
+    }
+  },
+  "stripe": {
+    "webhookEndpoint": "/api/stripe/webhook",
+    "products": {
+      "premium": "Premium Subscription",
+      "enterprise": "Enterprise Solution"
+    }
+  },
+  "features": {
+    "pwa": true,
+    "offline": true,
+    "analytics": true,
+    "authentication": true,
+    "payments": true,
+    "wordFrequency": true,
+    "audioSync": true,
+    "glossary": true,
+    "darkMode": true,
+    "multiLanguage": false
+  }
+}
