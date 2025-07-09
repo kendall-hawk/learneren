@@ -675,12 +675,6 @@
                                 <div class="loading-tips">
                                     <small>💡 首次分析需要一些时间，后续访问将使用缓存数据</small>
                                 </div>
-                                <div class="loading-actions" style="margin-top: 20px;">
-                                    <button onclick="window.wordFreqUI && window.wordFreqUI.forceShowDisplayContainer()" 
-                                            style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 20px; cursor: pointer; font-size: 12px;">
-                                        🔧 强制显示内容
-                                    </button>
-                                </div>
                             </div>
                         </div>
                         
@@ -1790,10 +1784,6 @@
                     font-size: 13px;
                     line-height: 1.4;
                     max-width: 300px;
-                }
-                
-                .loading-actions {
-                    margin-top: 20px;
                 }
                 
                 .word-freq-display {
