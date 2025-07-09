@@ -544,28 +544,28 @@
                 setTimeout(() => {
                     if (!this.state.isInitialized) {
                         console.log('🔧 强制显示内容（管理器可能还在加载）');
-                        this.showFallbackContent();
+                        this.showWaitingContent();
                     }
                 }, 2000); // 2秒后强制显示
             }
         }
         
-        // 🔧 新增：显示降级内容
-        showFallbackContent() {
+        // 🔧 新增：显示等待内容
+        showWaitingContent() {
             this.state.isInitialized = true;
             this.forceShowDisplayContainer();
             
             const container = this.getCachedElement('#display-content');
             if (container) {
                 container.innerHTML = `
-                    <div class="fallback-content" style="text-align: center; padding: 60px 20px; color: #6c757d; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-radius: 12px; margin: 20px 0;">
-                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.6;">📊</div>
-                        <h3 style="color: #495057; margin-bottom: 12px; font-size: 20px;">词频分析工具</h3>
-                        <p style="margin-bottom: 20px; font-size: 14px; line-height: 1.6;">数据正在后台加载，请稍等片刻...</p>
+                    <div class="waiting-content" style="text-align: center; padding: 60px 20px; color: #6c757d; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-radius: 12px; margin: 20px 0;">
+                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.6;">⏳</div>
+                        <h3 style="color: #495057; margin-bottom: 12px; font-size: 20px;">等待数据加载</h3>
+                        <p style="margin-bottom: 20px; font-size: 14px; line-height: 1.6;">词频分析数据正在加载中，请稍等...</p>
                         <div style="margin-top: 20px;">
                             <button onclick="window.wordFreqUI && window.wordFreqUI.refreshData()" 
                                     style="padding: 12px 24px; background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
-                                🔄 重新加载数据
+                                🔄 重新尝试
                             </button>
                         </div>
                         <div style="margin-top: 20px; font-size: 12px; color: #adb5bd;">
@@ -575,12 +575,12 @@
                 `;
             }
             
-            // 定期尝试刷新
+            // 定期检查数据是否就绪
             setTimeout(() => {
                 if (this.state.managerReady) {
                     this.refreshData();
                 }
-            }, 5000);
+            }, 3000);
         }
         
         // 🔧 新增：强制显示显示容器
@@ -614,7 +614,7 @@
                         <div class="header-title">
                             <h1>📊 词频统计分析</h1>
                             <div class="stats-summary" id="stats-summary">
-                                <span class="stat-item">初始化中...</span>
+                                <span class="stat-item">等待数据加载...</span>
                             </div>
                         </div>
                         
@@ -1057,7 +1057,11 @@
                 const words = this.getFilteredWords();
                 
                 if (words.length === 0) {
-                    this.showNoResults('暂无词汇数据');
+                    if (!this.state.managerReady) {
+                        this.showWaitingContent();
+                    } else {
+                        this.showNoResults('暂无符合条件的词汇数据');
+                    }
                     return;
                 }
                 
@@ -1071,7 +1075,11 @@
                 const words = this.getFilteredWords();
                 
                 if (words.length === 0) {
-                    this.showNoResults('暂无词汇数据');
+                    if (!this.state.managerReady) {
+                        this.showWaitingContent();
+                    } else {
+                        this.showNoResults('暂无符合条件的词汇数据');
+                    }
                     return;
                 }
                 
@@ -1082,10 +1090,10 @@
         // 📊 修复版获取过滤后的词汇
         getFilteredWords(limit = 500) {
             return this.errorHandler.safe(() => {
-                // 🔧 修复：如果管理器未就绪，返回示例数据
+                // 🔧 修复：如果管理器未就绪，返回空数组
                 if (!this.manager || !this.state.managerReady) {
-                    console.log('📊 管理器未就绪，返回示例数据');
-                    return this.generateSampleWords();
+                    console.log('📊 管理器未就绪，返回空数组');
+                    return [];
                 }
                 
                 const cacheKey = `${this.state.currentFilter}_${limit}`;
@@ -1100,7 +1108,7 @@
                     words = this.manager.getTopWords ? this.manager.getTopWords(limit) : [];
                 } catch (error) {
                     console.warn('获取词汇数据失败:', error);
-                    words = this.generateSampleWords();
+                    return [];
                 }
                 
                 // 应用筛选
@@ -1125,23 +1133,7 @@
                 }
                 
                 return words;
-            }, this.generateSampleWords(), 'getFilteredWords');
-        }
-        
-        // 🔧 新增：生成示例数据
-        generateSampleWords() {
-            return [
-                { word: 'example', totalCount: 25, articleCount: 8, mostCommonVariant: 'example' },
-                { word: 'learning', totalCount: 20, articleCount: 6, mostCommonVariant: 'learning' },
-                { word: 'english', totalCount: 18, articleCount: 7, mostCommonVariant: 'english' },
-                { word: 'language', totalCount: 15, articleCount: 5, mostCommonVariant: 'language' },
-                { word: 'study', totalCount: 12, articleCount: 4, mostCommonVariant: 'study' },
-                { word: 'practice', totalCount: 10, articleCount: 4, mostCommonVariant: 'practice' },
-                { word: 'vocabulary', totalCount: 8, articleCount: 3, mostCommonVariant: 'vocabulary' },
-                { word: 'grammar', totalCount: 7, articleCount: 3, mostCommonVariant: 'grammar' },
-                { word: 'reading', totalCount: 6, articleCount: 2, mostCommonVariant: 'reading' },
-                { word: 'writing', totalCount: 5, articleCount: 2, mostCommonVariant: 'writing' }
-            ];
+            }, [], 'getFilteredWords');
         }
         
         // ☁️ 渲染词云视图
@@ -1445,20 +1437,24 @@
                             `<span class="stat-item">${stat}</span>`
                         ).join('');
                     } else {
-                        summaryEl.innerHTML = '<span class="stat-item">统计数据获取中...</span>';
+                        summaryEl.innerHTML = '<span class="stat-item">统计数据加载中...</span>';
                     }
                 } else {
-                    // 🔧 修复：显示默认或示例统计
-                    const defaultStats = [
-                        '📚 数据加载中...',
-                        '📝 正在分析词汇',
-                        '🔢 统计计算中',
-                        '📊 请稍等片刻'
-                    ];
-                    
-                    summaryEl.innerHTML = defaultStats.map(stat =>
-                        `<span class="stat-item">${stat}</span>`
-                    ).join('');
+                    // 🔧 修复：显示数据加载状态
+                    if (!this.state.managerReady) {
+                        const loadingStats = [
+                            '📚 等待数据...',
+                            '📝 正在分析',
+                            '🔢 加载中',
+                            '📊 请稍候'
+                        ];
+                        
+                        summaryEl.innerHTML = loadingStats.map(stat =>
+                            `<span class="stat-item">${stat}</span>`
+                        ).join('');
+                    } else {
+                        summaryEl.innerHTML = '<span class="stat-item">暂无统计数据</span>';
+                    }
                 }
             }, null, 'updateStatsSummary');
         }
@@ -1826,7 +1822,7 @@
                     border-color: #007bff;
                 }
                 
-                .no-results, .fallback-content {
+                .no-results, .waiting-content {
                     animation: fadeIn 0.5s ease-out;
                 }
                 
