@@ -1,21 +1,21 @@
 /**
- * 📊 词频分析UI系统 - 修复版 v4.1
+ * 📊 词频分析UI系统 - 修复版 v4.2
  * 
  * 修复问题：
- * - 修复加载界面卡住问题
- * - 优化初始化流程
- * - 增强错误处理和降级方案
- * - 确保UI正确切换状态
+ * - 修复async/await时序问题
+ * - 移除超时和强制显示逻辑
+ * - 简化初始化流程
+ * - 确保UI正确等待管理器就绪
  * 
  * @author Fixed Word Frequency UI
- * @version 4.1.0
+ * @version 4.2.0
  * @date 2025-01-09
  */
 
 (function() {
     'use strict';
     
-    console.log('📊 Loading Fixed Word Frequency UI v4.1...');
+    console.log('📊 Loading Fixed Word Frequency UI v4.2...');
     
     // 确保全局命名空间
     window.EnglishSite = window.EnglishSite || {};
@@ -348,8 +348,8 @@
                 selectedWord: null,
                 isInitialized: false,
                 isDestroyed: false,
-                managerReady: false, // 🔧 新增：管理器就绪状态
-                uiReady: false // 🔧 新增：UI就绪状态
+                managerReady: false,
+                uiReady: false
             };
             
             // 性能优化
@@ -383,9 +383,7 @@
                 animationDuration: 300,
                 maxDisplayItems: 200,
                 cacheSize: 50,
-                enablePreloading: true,
-                forceShowContent: true, // 🔧 新增：强制显示内容
-                maxWaitTime: 10000 // 🔧 新增：最大等待时间
+                enablePreloading: true
             };
             
             return window.EnglishSite.ConfigManager?.createModuleConfig('wordFrequencyUI', {
@@ -465,45 +463,29 @@
                 // 设置事件监听
                 this.setupEventListeners();
                 
-                // 🔧 修复：UI先标记为就绪
+                // UI就绪
                 this.state.uiReady = true;
                 console.log('✅ UI结构初始化完成');
                 
-                // 🔧 修复：异步等待管理器就绪，带超时处理
-                this.waitForManagerWithTimeout();
+                // 🔧 修复：正确等待管理器就绪
+                await this.waitForManagerReady();
                 
-                // 🔧 修复：立即尝试显示内容
-                this.tryShowContent();
+                // 完成初始化
+                this.finalizeInitialization();
                 
                 console.log('✅ 修复版词频UI初始化完成');
                 
             }, null, 'initialize');
         }
         
-        // 🔧 新增：带超时的管理器等待
-        async waitForManagerWithTimeout() {
-            const startTime = Date.now();
-            
+        // 🔧 修复：等待管理器就绪
+        async waitForManagerReady() {
             try {
                 if (this.manager && this.manager.waitForReady) {
                     console.log('⏳ 等待数据管理器就绪...');
-                    
-                    // 创建超时Promise
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => {
-                            reject(new Error('管理器等待超时'));
-                        }, this.config.maxWaitTime);
-                    });
-                    
-                    // 竞争超时和管理器就绪
-                    await Promise.race([
-                        this.manager.waitForReady(),
-                        timeoutPromise
-                    ]);
-                    
+                    await this.manager.waitForReady();
                     this.state.managerReady = true;
                     console.log('✅ 数据管理器已就绪');
-                    
                 } else {
                     console.warn('⚠️ 管理器不存在或无waitForReady方法');
                     this.state.managerReady = false;
@@ -512,12 +494,9 @@
                 console.warn('⚠️ 管理器等待失败:', error.message);
                 this.state.managerReady = false;
             }
-            
-            // 🔧 关键修复：无论管理器是否就绪，都要尝试显示内容
-            this.finalizeInitialization();
         }
         
-        // 🔧 新增：完成初始化
+        // 🔧 完成初始化
         finalizeInitialization() {
             this.state.isInitialized = true;
             
@@ -525,77 +504,14 @@
             this.updateStatsSummary();
             
             // 显示内容
+            this.showDisplayContainer();
             this.displayCurrentView();
-            
-            // 🔧 强制隐藏加载界面
-            this.forceShowDisplayContainer();
             
             console.log('🎉 词频UI完全就绪:', {
                 uiReady: this.state.uiReady,
                 managerReady: this.state.managerReady,
                 isInitialized: this.state.isInitialized
             });
-        }
-        
-        // 🔧 新增：尝试显示内容
-        tryShowContent() {
-            // 如果配置了强制显示，立即显示
-            if (this.config.forceShowContent) {
-                setTimeout(() => {
-                    if (!this.state.isInitialized) {
-                        console.log('🔧 强制显示内容（管理器可能还在加载）');
-                        this.showWaitingContent();
-                    }
-                }, 2000); // 2秒后强制显示
-            }
-        }
-        
-        // 🔧 新增：显示等待内容
-        showWaitingContent() {
-            this.state.isInitialized = true;
-            this.forceShowDisplayContainer();
-            
-            const container = this.getCachedElement('#display-content');
-            if (container) {
-                container.innerHTML = `
-                    <div class="waiting-content" style="text-align: center; padding: 60px 20px; color: #6c757d; background: linear-gradient(135deg, #f8f9fa, #ffffff); border-radius: 12px; margin: 20px 0;">
-                        <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.6;">⏳</div>
-                        <h3 style="color: #495057; margin-bottom: 12px; font-size: 20px;">等待数据加载</h3>
-                        <p style="margin-bottom: 20px; font-size: 14px; line-height: 1.6;">词频分析数据正在加载中，请稍等...</p>
-                        <div style="margin-top: 20px;">
-                            <button onclick="window.wordFreqUI && window.wordFreqUI.refreshData()" 
-                                    style="padding: 12px 24px; background: linear-gradient(135deg, #007bff, #0056b3); color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: 600; transition: all 0.3s ease;">
-                                🔄 重新尝试
-                            </button>
-                        </div>
-                        <div style="margin-top: 20px; font-size: 12px; color: #adb5bd;">
-                            如果长时间无响应，请检查网络连接或刷新页面
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // 定期检查数据是否就绪
-            setTimeout(() => {
-                if (this.state.managerReady) {
-                    this.refreshData();
-                }
-            }, 3000);
-        }
-        
-        // 🔧 新增：强制显示显示容器
-        forceShowDisplayContainer() {
-            const loading = this.getCachedElement('#freq-loading');
-            const display = this.getCachedElement('#freq-display');
-            
-            if (loading) {
-                loading.style.display = 'none';
-                console.log('🔧 强制隐藏加载界面');
-            }
-            if (display) {
-                display.style.display = 'block';
-                console.log('🔧 强制显示内容区域');
-            }
         }
         
         // 🎨 渲染UI结构
@@ -1015,21 +931,22 @@
             }, null, 'performJump');
         }
         
-        // 📊 修复版显示当前视图
+        // 📊 显示当前视图
         displayCurrentView() {
             return this.errorHandler.safe(() => {
-                // 🔧 修复：移除 isInitialized 检查
+                if (!this.state.isInitialized) {
+                    console.log('📊 UI未完全初始化，跳过显示');
+                    return;
+                }
+                
                 console.log('📊 显示当前视图:', this.state.currentView);
                 
                 // 检查是否在搜索状态
                 const searchState = this.searchManager.getState();
                 if (searchState.hasResults) {
                     console.log('🔍 当前在搜索状态，不覆盖搜索结果');
-                    return; // 在搜索状态下不覆盖搜索结果
+                    return;
                 }
-                
-                // 🔧 修复：强制显示容器
-                this.forceShowDisplayContainer();
                 
                 switch (this.state.currentView) {
                     case 'cloud':
@@ -1052,7 +969,7 @@
                 
                 if (words.length === 0) {
                     if (!this.state.managerReady) {
-                        this.showWaitingContent();
+                        this.showNoResults('数据分析中，请稍等...');
                     } else {
                         this.showNoResults('暂无符合条件的词汇数据');
                     }
@@ -1070,7 +987,7 @@
                 
                 if (words.length === 0) {
                     if (!this.state.managerReady) {
-                        this.showWaitingContent();
+                        this.showNoResults('数据分析中，请稍等...');
                     } else {
                         this.showNoResults('暂无符合条件的词汇数据');
                     }
@@ -1081,10 +998,9 @@
             }, null, 'displayWordList');
         }
         
-        // 📊 修复版获取过滤后的词汇
+        // 📊 获取过滤后的词汇
         getFilteredWords(limit = 500) {
             return this.errorHandler.safe(() => {
-                // 🔧 修复：如果管理器未就绪，返回空数组
                 if (!this.manager || !this.state.managerReady) {
                     console.log('📊 管理器未就绪，返回空数组');
                     return [];
@@ -1164,9 +1080,6 @@
                 });
                 
                 content.appendChild(cloudContainer);
-                
-                // 🔧 确保容器显示
-                this.forceShowDisplayContainer();
             }, null, 'renderWordCloudView');
         }
         
@@ -1196,9 +1109,6 @@
                 });
                 
                 content.appendChild(listContainer);
-                
-                // 🔧 确保容器显示
-                this.forceShowDisplayContainer();
             }, null, 'renderWordListView');
         }
         
@@ -1368,7 +1278,15 @@
         
         // 📺 显示显示容器
         showDisplayContainer() {
-            this.forceShowDisplayContainer();
+            const loading = this.getCachedElement('#freq-loading');
+            const display = this.getCachedElement('#freq-display');
+            
+            if (loading) {
+                loading.style.display = 'none';
+            }
+            if (display) {
+                display.style.display = 'block';
+            }
         }
         
         // 📭 显示无结果
@@ -1397,12 +1315,6 @@
                 
                 display.style.display = 'block';
             }
-            
-            // 🔧 确保隐藏加载界面
-            const loading = this.getCachedElement('#freq-loading');
-            if (loading) {
-                loading.style.display = 'none';
-            }
         }
         
         // 🧹 清除数据缓存
@@ -1410,7 +1322,7 @@
             this.performance.dataCache.clear();
         }
         
-        // 📊 修复版更新统计摘要
+        // 📊 更新统计摘要
         updateStatsSummary() {
             return this.errorHandler.safe(() => {
                 const summaryEl = this.getCachedElement('#stats-summary');
@@ -1434,21 +1346,7 @@
                         summaryEl.innerHTML = '<span class="stat-item">统计数据加载中...</span>';
                     }
                 } else {
-                    // 🔧 修复：显示数据加载状态
-                    if (!this.state.managerReady) {
-                        const loadingStats = [
-                            '📚 等待数据...',
-                            '📝 正在分析',
-                            '🔢 加载中',
-                            '📊 请稍候'
-                        ];
-                        
-                        summaryEl.innerHTML = loadingStats.map(stat =>
-                            `<span class="stat-item">${stat}</span>`
-                        ).join('');
-                    } else {
-                        summaryEl.innerHTML = '<span class="stat-item">暂无统计数据</span>';
-                    }
+                    summaryEl.innerHTML = '<span class="stat-item">等待数据加载...</span>';
                 }
             }, null, 'updateStatsSummary');
         }
@@ -1461,12 +1359,291 @@
             if (progressFill) progressFill.style.width = `${progress}%`;
             if (progressText) progressText.textContent = `${progress}%`;
             
-            // 🔧 当进度达到100%时，自动切换显示
+            // 当进度达到100%时，完成初始化
             if (progress >= 100) {
                 setTimeout(() => {
-                    this.finalizeInitialization();
+                    if (!this.state.isInitialized) {
+                        this.state.managerReady = true;
+                        this.finalizeInitialization();
+                    }
                 }, 500);
             }
+        }
+        
+        // 💾 显示搜索结果
+        displaySearchResults(results, query, mode) {
+            return this.errorHandler.safe(() => {
+                const container = this.getCachedElement('#display-content');
+                if (!container) return;
+                
+                container.innerHTML = '';
+                
+                // 创建搜索结果容器
+                const searchContainer = this.createSearchResultsContainer(query, mode, results.length);
+                container.appendChild(searchContainer);
+                
+                // 根据视图模式渲染结果
+                const resultsArea = searchContainer.querySelector('.search-results-area');
+                if (this.state.currentView === 'cloud') {
+                    this.renderSearchResultsAsCloud(resultsArea, results);
+                } else {
+                    this.renderSearchResultsAsList(resultsArea, results);
+                }
+                
+                console.log(`✅ 搜索结果已显示: ${results.length}个结果`);
+            }, null, 'displaySearchResults');
+        }
+        
+        // 📦 创建搜索结果容器
+        createSearchResultsContainer(query, mode, resultCount) {
+            const container = document.createElement('div');
+            container.className = 'search-results-wrapper';
+            container.style.cssText = `
+                width: 100%;
+                background: white;
+                overflow: visible;
+                padding: 20px;
+            `;
+            
+            // 搜索标题
+            const header = this.createSearchHeader(query, mode, resultCount);
+            container.appendChild(header);
+            
+            // 结果区域
+            const resultsArea = document.createElement('div');
+            resultsArea.className = 'search-results-area';
+            resultsArea.style.cssText = `
+                margin-top: 20px;
+                background: white;
+            `;
+            container.appendChild(resultsArea);
+            
+            return container;
+        }
+        
+        // 📝 创建搜索标题
+        createSearchHeader(query, mode, resultCount) {
+            const header = document.createElement('div');
+            header.className = 'search-results-header';
+            header.style.cssText = `
+                background: linear-gradient(135deg, #007bff, #0056b3);
+                color: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                margin-bottom: 20px;
+            `;
+            
+            const modeText = mode === 'intelligent' ? '智能搜索' : '精确搜索';
+            const modeDescription = mode === 'intelligent' ?
+                '找到了所有相关变形词的合并结果' :
+                `只显示包含确切词汇 "${query}" 的文章`;
+            
+            header.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 20px; font-weight: 600;">
+                        ${mode === 'intelligent' ? '🧠' : '🎯'} ${modeText}结果
+                    </h3>
+                    <div style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px; font-size: 14px; font-weight: 500;">
+                        ${resultCount} 个结果
+                    </div>
+                </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 12px 16px; border-radius: 6px; font-size: 14px; line-height: 1.4;">
+                    <div style="margin-bottom: 8px;">
+                        <strong>搜索词：</strong> "${query}"
+                    </div>
+                    <div style="opacity: 0.9;">
+                        ${modeDescription}
+                    </div>
+                </div>
+                <div style="margin-top: 12px; font-size: 12px; opacity: 0.8; text-align: center;">
+                    💡 可以通过上方的模式选项卡切换搜索方式
+                </div>
+            `;
+            
+            return header;
+        }
+        
+        // ☁️ 以词云形式渲染搜索结果
+        renderSearchResultsAsCloud(container, results) {
+            const maxCount = results[0]?.totalCount || 1;
+            const minCount = results[results.length - 1]?.totalCount || 1;
+            
+            const cloudContainer = document.createElement('div');
+            cloudContainer.className = 'search-word-cloud';
+            cloudContainer.style.cssText = `
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                align-items: center;
+                gap: 15px;
+                padding: 30px 20px;
+                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+                border-radius: 12px;
+                min-height: 150px;
+                border: 2px solid #dee2e6;
+            `;
+            
+            results.forEach(item => {
+                const wordElement = this.createWordCloudItem(item, minCount, maxCount);
+                // 为搜索结果添加特殊样式
+                wordElement.style.background = item.isExactMatch ? 
+                    'rgba(40, 167, 69, 0.15)' : 
+                    'rgba(0, 123, 255, 0.1)';
+                wordElement.style.borderColor = item.isExactMatch ? 
+                    'rgba(40, 167, 69, 0.4)' : 
+                    'rgba(0, 123, 255, 0.3)';
+                
+                cloudContainer.appendChild(wordElement);
+            });
+            
+            container.appendChild(cloudContainer);
+        }
+        
+        // 📋 以列表形式渲染搜索结果
+        renderSearchResultsAsList(container, results) {
+            const listContainer = document.createElement('div');
+            listContainer.className = 'search-word-list';
+            listContainer.style.cssText = `
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            `;
+            
+            results.forEach(item => {
+                const listItem = this.createWordListItem(item);
+                // 为搜索结果添加特殊样式
+                listItem.style.borderColor = item.isExactMatch ? '#28a745' : '#e9ecef';
+                listItem.style.background = item.isExactMatch ? 
+                    'rgba(40, 167, 69, 0.05)' : 
+                    'white';
+                
+                listContainer.appendChild(listItem);
+            });
+            
+            container.appendChild(listContainer);
+        }
+        
+        // 🔍 显示单词详情
+        showWordDetails(details) {
+            return this.errorHandler.safe(() => {
+                const { word, totalCount, articleCount, articles } = details;
+                
+                const panel = this.getCachedElement('#word-details');
+                if (!panel) return;
+                
+                const detailsHTML = this.createWordDetailsHTML(word, totalCount, articleCount, articles);
+                panel.innerHTML = detailsHTML;
+                panel.style.display = 'block';
+                
+                // 滚动到详情面板
+                setTimeout(() => {
+                    panel.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest'
+                    });
+                }, 100);
+            }, null, 'showWordDetails');
+        }
+        
+        // 🏷️ 创建单词详情HTML
+        createWordDetailsHTML(word, totalCount, articleCount, articles) {
+            const statsItems = [
+                ['总出现次数', totalCount, '#007bff'],
+                ['出现文章数', articleCount, '#28a745'],
+                ['平均每篇', (totalCount / articleCount).toFixed(1), '#fd7e14']
+            ];
+            
+            const statsHTML = statsItems.map(([label, value, color]) => `
+                <div class="stat" style="background: linear-gradient(135deg, ${color}15, ${color}05); border: 2px solid ${color}30; padding: 16px; border-radius: 12px; text-align: center; transition: transform 0.2s ease;">
+                    <div style="color: ${color}; font-weight: 700; font-size: 24px; margin-bottom: 4px;">${value}</div>
+                    <div style="color: #6c757d; font-size: 14px; font-weight: 500;">${label}</div>
+                </div>
+            `).join('');
+            
+            const articlesHTML = articles ? articles.map(article => this.createArticleItemHTML(article, word)).join('') : '';
+            
+            return `
+                <div class="word-details" style="background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 24px; margin: 20px 0;">
+                    <h3 style="margin: 0 0 20px 0; color: #2c3e50; border-bottom: 2px solid #007bff; padding-bottom: 10px; font-size: 24px;">
+                        📝 "${word}" 详细分析
+                    </h3>
+                    
+                    <div class="word-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 25px;">
+                        ${statsHTML}
+                    </div>
+                    
+                    <h4 style="color: #2c3e50; margin: 30px 0 15px 0; font-size: 18px;">
+                        📚 相关文章 (按出现频次排序)
+                    </h4>
+                    
+                    <div class="article-list" style="display: grid; gap: 16px; margin-top: 20px; max-height: 500px; overflow-y: auto; padding-right: 8px;">
+                        ${articlesHTML}
+                    </div>
+                    
+                    <button class="close-details-btn" style="background: linear-gradient(135deg, #6c757d, #5a6268); color: white; border: none; padding: 12px 24px; border-radius: 25px; cursor: pointer; margin-top: 24px; font-size: 14px; font-weight: 600; transition: all 0.3s ease; display: block; margin-left: auto; margin-right: auto;">
+                        ✕ 关闭详情
+                    </button>
+                </div>
+            `;
+        }
+        
+        // 📄 创建文章项目HTML
+        createArticleItemHTML(article, word) {
+            const contextsHTML = article.contexts && article.contexts.length > 0 ?
+                article.contexts.map(ctx => `
+                    <div class="context" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); padding: 12px 16px; border-radius: 8px; margin: 8px 0; font-size: 13px; line-height: 1.5; border-left: 3px solid #28a745; font-family: 'Segoe UI', system-ui, sans-serif;">
+                        ${ctx}
+                    </div>
+                `).join('') : '';
+            
+            return `
+                <div class="article-item" data-article-id="${article.id}" data-word="${word}" style="position: relative; padding: 20px 24px; background: white; border-radius: 12px; border-left: 4px solid #007bff; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); border: 1px solid #e9ecef;">
+                    <div class="article-title" style="font-weight: 600; color: #2c3e50; margin-bottom: 12px; font-size: 16px; line-height: 1.4;">
+                        ${article.title}
+                    </div>
+                    <div class="article-stats" style="margin-bottom: 12px;">
+                        <span style="color: #6c757d; font-size: 14px;">在此文章中出现 </span>
+                        <strong style="color: #007bff; font-size: 16px; font-weight: 700;">${article.count}</strong>
+                        <span style="color: #6c757d; font-size: 14px;"> 次</span>
+                        <span class="click-hint" style="font-size: 12px; color: #007bff; opacity: 0; transition: opacity 0.3s; margin-left: 15px; font-weight: 500;">👆 点击跳转并高亮</span>
+                    </div>
+                    ${contextsHTML ? `<div class="contexts" style="margin-top: 16px;">${contextsHTML}</div>` : ''}
+                </div>
+            `;
+        }
+        
+        // 🚫 隐藏单词详情
+        hideWordDetails() {
+            const panel = this.getCachedElement('#word-details');
+            if (panel) {
+                panel.style.display = 'none';
+                panel.innerHTML = '';
+            }
+            this.state.selectedWord = null;
+        }
+        
+        // 🚀 显示跳转通知
+        showJumpNotification(articleId, word) {
+            return this.errorHandler.safe(() => {
+                document.querySelectorAll('[data-jump-notification]').forEach(el => el.remove());
+                
+                const notification = document.createElement('div');
+                notification.setAttribute('data-jump-notification', 'true');
+                notification.style.cssText = `
+                    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+                    background: linear-gradient(135deg, #28a745, #20c997); color: white;
+                    padding: 12px 20px; border-radius: 25px; z-index: 10000;
+                    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+                    font-size: 14px; font-weight: 500; max-width: 400px;
+                    backdrop-filter: blur(10px);
+                `;
+                
+                notification.innerHTML = `🚀 正在跳转到文章 (高亮 "${word}")`;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => notification.remove(), 4000);
+            }, null, 'showJumpNotification');
         }
         
         // 🎨 加载样式
@@ -1812,7 +1989,7 @@
                     border-color: #007bff;
                 }
                 
-                .no-results, .waiting-content {
+                .no-results {
                     animation: fadeIn 0.5s ease-out;
                 }
                 
@@ -1875,287 +2052,6 @@
             document.head.appendChild(style);
         }
         
-        // === 以下方法与原版保持一致，只增加错误处理 ===
-        
-        // 💾 显示搜索结果
-        displaySearchResults(results, query, mode) {
-            return this.errorHandler.safe(() => {
-                const container = this.getCachedElement('#display-content');
-                if (!container) return;
-                
-                container.innerHTML = '';
-                
-                // 创建搜索结果容器
-                const searchContainer = this.createSearchResultsContainer(query, mode, results.length);
-                container.appendChild(searchContainer);
-                
-                // 根据视图模式渲染结果
-                const resultsArea = searchContainer.querySelector('.search-results-area');
-                if (this.state.currentView === 'cloud') {
-                    this.renderSearchResultsAsCloud(resultsArea, results);
-                } else {
-                    this.renderSearchResultsAsList(resultsArea, results);
-                }
-                
-                // 强制显示容器
-                this.forceShowDisplayContainer();
-                
-                console.log(`✅ 搜索结果已显示: ${results.length}个结果`);
-            }, null, 'displaySearchResults');
-        }
-        
-        // 📦 创建搜索结果容器
-        createSearchResultsContainer(query, mode, resultCount) {
-            const container = document.createElement('div');
-            container.className = 'search-results-wrapper';
-            container.style.cssText = `
-                width: 100%;
-                background: white;
-                overflow: visible;
-                padding: 20px;
-            `;
-            
-            // 搜索标题
-            const header = this.createSearchHeader(query, mode, resultCount);
-            container.appendChild(header);
-            
-            // 结果区域
-            const resultsArea = document.createElement('div');
-            resultsArea.className = 'search-results-area';
-            resultsArea.style.cssText = `
-                margin-top: 20px;
-                background: white;
-            `;
-            container.appendChild(resultsArea);
-            
-            return container;
-        }
-        
-        // 📝 创建搜索标题
-        createSearchHeader(query, mode, resultCount) {
-            const header = document.createElement('div');
-            header.className = 'search-results-header';
-            header.style.cssText = `
-                background: linear-gradient(135deg, #007bff, #0056b3);
-                color: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                margin-bottom: 20px;
-            `;
-            
-            const modeText = mode === 'intelligent' ? '智能搜索' : '精确搜索';
-            const modeDescription = mode === 'intelligent' ?
-                '找到了所有相关变形词的合并结果' :
-                `只显示包含确切词汇 "${query}" 的文章`;
-            
-            header.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                    <h3 style="margin: 0; font-size: 20px; font-weight: 600;">
-                        ${mode === 'intelligent' ? '🧠' : '🎯'} ${modeText}结果
-                    </h3>
-                    <div style="background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 15px; font-size: 14px; font-weight: 500;">
-                        ${resultCount} 个结果
-                    </div>
-                </div>
-                <div style="background: rgba(255,255,255,0.1); padding: 12px 16px; border-radius: 6px; font-size: 14px; line-height: 1.4;">
-                    <div style="margin-bottom: 8px;">
-                        <strong>搜索词：</strong> "${query}"
-                    </div>
-                    <div style="opacity: 0.9;">
-                        ${modeDescription}
-                    </div>
-                </div>
-                <div style="margin-top: 12px; font-size: 12px; opacity: 0.8; text-align: center;">
-                    💡 可以通过上方的模式选项卡切换搜索方式
-                </div>
-            `;
-            
-            return header;
-        }
-        
-        // ☁️ 以词云形式渲染搜索结果
-        renderSearchResultsAsCloud(container, results) {
-            const maxCount = results[0]?.totalCount || 1;
-            const minCount = results[results.length - 1]?.totalCount || 1;
-            
-            const cloudContainer = document.createElement('div');
-            cloudContainer.className = 'search-word-cloud';
-            cloudContainer.style.cssText = `
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: center;
-                align-items: center;
-                gap: 15px;
-                padding: 30px 20px;
-                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-                border-radius: 12px;
-                min-height: 150px;
-                border: 2px solid #dee2e6;
-            `;
-            
-            results.forEach(item => {
-                const wordElement = this.createWordCloudItem(item, minCount, maxCount);
-                // 为搜索结果添加特殊样式
-                wordElement.style.background = item.isExactMatch ? 
-                    'rgba(40, 167, 69, 0.15)' : 
-                    'rgba(0, 123, 255, 0.1)';
-                wordElement.style.borderColor = item.isExactMatch ? 
-                    'rgba(40, 167, 69, 0.4)' : 
-                    'rgba(0, 123, 255, 0.3)';
-                
-                cloudContainer.appendChild(wordElement);
-            });
-            
-            container.appendChild(cloudContainer);
-        }
-        
-        // 📋 以列表形式渲染搜索结果
-        renderSearchResultsAsList(container, results) {
-            const listContainer = document.createElement('div');
-            listContainer.className = 'search-word-list';
-            listContainer.style.cssText = `
-                display: flex;
-                flex-direction: column;
-                gap: 16px;
-            `;
-            
-            results.forEach(item => {
-                const listItem = this.createWordListItem(item);
-                // 为搜索结果添加特殊样式
-                listItem.style.borderColor = item.isExactMatch ? '#28a745' : '#e9ecef';
-                listItem.style.background = item.isExactMatch ? 
-                    'rgba(40, 167, 69, 0.05)' : 
-                    'white';
-                
-                listContainer.appendChild(listItem);
-            });
-            
-            container.appendChild(listContainer);
-        }
-        
-        // 🔍 显示单词详情
-        showWordDetails(details) {
-            return this.errorHandler.safe(() => {
-                const { word, totalCount, articleCount, articles } = details;
-                
-                const panel = this.getCachedElement('#word-details');
-                if (!panel) return;
-                
-                const detailsHTML = this.createWordDetailsHTML(word, totalCount, articleCount, articles);
-                panel.innerHTML = detailsHTML;
-                panel.style.display = 'block';
-                
-                // 滚动到详情面板
-                setTimeout(() => {
-                    panel.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'nearest'
-                    });
-                }, 100);
-            }, null, 'showWordDetails');
-        }
-        
-        // 🏷️ 创建单词详情HTML
-        createWordDetailsHTML(word, totalCount, articleCount, articles) {
-            const statsItems = [
-                ['总出现次数', totalCount, '#007bff'],
-                ['出现文章数', articleCount, '#28a745'],
-                ['平均每篇', (totalCount / articleCount).toFixed(1), '#fd7e14']
-            ];
-            
-            const statsHTML = statsItems.map(([label, value, color]) => `
-                <div class="stat" style="background: linear-gradient(135deg, ${color}15, ${color}05); border: 2px solid ${color}30; padding: 16px; border-radius: 12px; text-align: center; transition: transform 0.2s ease;">
-                    <div style="color: ${color}; font-weight: 700; font-size: 24px; margin-bottom: 4px;">${value}</div>
-                    <div style="color: #6c757d; font-size: 14px; font-weight: 500;">${label}</div>
-                </div>
-            `).join('');
-            
-            const articlesHTML = articles ? articles.map(article => this.createArticleItemHTML(article, word)).join('') : '';
-            
-            return `
-                <div class="word-details" style="background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 24px; margin: 20px 0;">
-                    <h3 style="margin: 0 0 20px 0; color: #2c3e50; border-bottom: 2px solid #007bff; padding-bottom: 10px; font-size: 24px;">
-                        📝 "${word}" 详细分析
-                    </h3>
-                    
-                    <div class="word-stats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 25px;">
-                        ${statsHTML}
-                    </div>
-                    
-                    <h4 style="color: #2c3e50; margin: 30px 0 15px 0; font-size: 18px;">
-                        📚 相关文章 (按出现频次排序)
-                    </h4>
-                    
-                    <div class="article-list" style="display: grid; gap: 16px; margin-top: 20px; max-height: 500px; overflow-y: auto; padding-right: 8px;">
-                        ${articlesHTML}
-                    </div>
-                    
-                    <button class="close-details-btn" style="background: linear-gradient(135deg, #6c757d, #5a6268); color: white; border: none; padding: 12px 24px; border-radius: 25px; cursor: pointer; margin-top: 24px; font-size: 14px; font-weight: 600; transition: all 0.3s ease; display: block; margin-left: auto; margin-right: auto;">
-                        ✕ 关闭详情
-                    </button>
-                </div>
-            `;
-        }
-        
-        // 📄 创建文章项目HTML
-        createArticleItemHTML(article, word) {
-            const contextsHTML = article.contexts && article.contexts.length > 0 ?
-                article.contexts.map(ctx => `
-                    <div class="context" style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); padding: 12px 16px; border-radius: 8px; margin: 8px 0; font-size: 13px; line-height: 1.5; border-left: 3px solid #28a745; font-family: 'Segoe UI', system-ui, sans-serif;">
-                        ${ctx}
-                    </div>
-                `).join('') : '';
-            
-            return `
-                <div class="article-item" data-article-id="${article.id}" data-word="${word}" style="position: relative; padding: 20px 24px; background: white; border-radius: 12px; border-left: 4px solid #007bff; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); border: 1px solid #e9ecef;">
-                    <div class="article-title" style="font-weight: 600; color: #2c3e50; margin-bottom: 12px; font-size: 16px; line-height: 1.4;">
-                        ${article.title}
-                    </div>
-                    <div class="article-stats" style="margin-bottom: 12px;">
-                        <span style="color: #6c757d; font-size: 14px;">在此文章中出现 </span>
-                        <strong style="color: #007bff; font-size: 16px; font-weight: 700;">${article.count}</strong>
-                        <span style="color: #6c757d; font-size: 14px;"> 次</span>
-                        <span class="click-hint" style="font-size: 12px; color: #007bff; opacity: 0; transition: opacity 0.3s; margin-left: 15px; font-weight: 500;">👆 点击跳转并高亮</span>
-                    </div>
-                    ${contextsHTML ? `<div class="contexts" style="margin-top: 16px;">${contextsHTML}</div>` : ''}
-                </div>
-            `;
-        }
-        
-        // 🚫 隐藏单词详情
-        hideWordDetails() {
-            const panel = this.getCachedElement('#word-details');
-            if (panel) {
-                panel.style.display = 'none';
-                panel.innerHTML = '';
-            }
-            this.state.selectedWord = null;
-        }
-        
-        // 🚀 显示跳转通知
-        showJumpNotification(articleId, word) {
-            return this.errorHandler.safe(() => {
-                document.querySelectorAll('[data-jump-notification]').forEach(el => el.remove());
-                
-                const notification = document.createElement('div');
-                notification.setAttribute('data-jump-notification', 'true');
-                notification.style.cssText = `
-                    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-                    background: linear-gradient(135deg, #28a745, #20c997); color: white;
-                    padding: 12px 20px; border-radius: 25px; z-index: 10000;
-                    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
-                    font-size: 14px; font-weight: 500; max-width: 400px;
-                    backdrop-filter: blur(10px);
-                `;
-                
-                notification.innerHTML = `🚀 正在跳转到文章 (高亮 "${word}")`;
-                document.body.appendChild(notification);
-                
-                setTimeout(() => notification.remove(), 4000);
-            }, null, 'showJumpNotification');
-        }
-        
         // === 公共API方法 ===
         
         async waitForInitialization() {
@@ -2182,9 +2078,6 @@
                     // 显示当前视图
                     this.displayCurrentView();
                 }
-                
-                // 🔧 强制显示内容
-                this.forceShowDisplayContainer();
                 
                 console.log('✅ 数据刷新完成');
             }, null, 'refreshData');
@@ -2256,6 +2149,6 @@
     window.EnglishSite.FixedWordFrequencyUI = FixedWordFrequencyUI;
     window.EnglishSite.FixedSearchManager = FixedSearchManager;
     
-    console.log('✅ Fixed Word Frequency UI v4.1 loaded successfully');
+    console.log('✅ Fixed Word Frequency UI v4.2 loaded successfully');
     
 })();
