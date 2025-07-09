@@ -1,273 +1,389 @@
-// js/audio-sync.js - 超级优化版本，性能提升60%，内存减少40%
+/**
+ * 🎵 音频同步系统 - 稳定重构版 v3.0
+ * 
+ * 特性：
+ * - 稳定的ES2020语法
+ * - 简化的初始化流程
+ * - 增强的错误处理和兼容性
+ * - 高性能缓存和DOM优化
+ * - 智能高亮决策系统
+ * 
+ * @author Stable Audio Sync
+ * @version 3.0.0
+ * @date 2025-01-09
+ */
+
 window.EnglishSite = window.EnglishSite || {};
 
 class AudioSync {
-    static #HIGHLIGHT_CLASS = 'highlighted';
-    static #SENTENCE_ID_ATTR = 'data-sentence-id';
-    
-    // 🚀 新增：静态缓存池（对象复用）
-    static #objectPool = {
-        layoutInfos: [],
-        searchResults: [],
-        timeQueries: [],
-        maxPoolSize: 20
-    };
-    
-    // 🚀 新增：获取池化对象
-    static #getPooledObject(type, factory) {
-        const pool = this.#objectPool[type];
-        return pool.length > 0 ? pool.pop() : factory();
-    }
-    
-    // 🚀 新增：回收对象到池
-    static #returnToPool(type, obj) {
-        const pool = this.#objectPool[type];
-        if (pool.length < this.#objectPool.maxPoolSize) {
-            // 清理对象数据
-            for (const key in obj) {
-                delete obj[key];
-            }
-            pool.push(obj);
-        }
-    }
-    
     constructor(contentArea, srtText, audioPlayer, options = {}) {
-        this.initPromise = this.#initialize(contentArea, srtText, audioPlayer, options);
+        console.log('[AudioSync] 🎵 开始初始化稳定版音频同步...');
+        
+        // 基础属性
+        this.contentArea = contentArea;
+        this.audioPlayer = audioPlayer;
+        this.srtText = srtText;
+        this.options = options || {};
+        
+        // 常量定义（避免静态私有字段）
+        this.HIGHLIGHT_CLASS = 'highlighted';
+        this.SENTENCE_ID_ATTR = 'data-sentence-id';
+        
+        // 初始化状态
+        this.isInitialized = false;
+        this.initializationError = null;
+        
+        // 开始初始化
+        this.initPromise = this.initialize();
     }
 
-    async #initialize(contentArea, srtText, audioPlayer, options) {
+    async initialize() {
         try {
-            await window.EnglishSite.coreToolsReady;
+            console.log('[AudioSync] 🔧 等待核心工具就绪...');
             
-            // 基础属性
-            this.contentArea = contentArea;
-            this.audioPlayer = audioPlayer;
-            this.srtText = srtText;
+            // 等待核心工具
+            if (window.EnglishSite.coreToolsReady) {
+                await window.EnglishSite.coreToolsReady;
+            }
+            
+            console.log('[AudioSync] ✅ 核心工具就绪，开始配置...');
             
             // 配置管理
-            this.config = window.EnglishSite.ConfigManager.createModuleConfig('audioSync', {
-                offset: options.offset || 0,
-                autoscroll: options.autoscroll !== false,
-                enableWorkers: window.EnglishSite.ConfigManager.get('features.ENABLE_WORKERS', true),
-                workerTimeout: window.EnglishSite.ConfigManager.get('performance.WORKER_TIMEOUT', 15000),
-                debug: window.EnglishSite.ConfigManager.get('debug', false),
-                ...options
-            });
-
-            // 🚀 优化：精简配置（减少对象创建）
-            this.opts = {
+            this.config = this.createConfig();
+            
+            // 性能配置
+            this.performanceOpts = {
                 timeTolerance: 0.15,
                 searchTolerance: 1.0,
-                updateThrottle: 20,         // 降低到20ms，提升响应性
-                preloadBuffer: 2,           // 减少预加载数量
-                maxSearchRange: 10,         // 限制搜索范围
-                batchSize: 5,               // 批处理大小
+                updateThrottle: 20,
+                preloadBuffer: 2,
+                maxSearchRange: 10,
+                batchSize: 5
             };
             
-            // 🚀 优化：DOM查找策略（重新排序，最常用的在前）
+            // DOM查找策略
             this.domStrategies = [
-                (id) => `[data-sentence-id="${id}"]`,        // 最常用
-                (id) => `[data-sentence-id="s${id}"]`,       // 次常用
-                (id) => `#sentence-${id}`,                   // 第三常用
+                (id) => `[data-sentence-id="${id}"]`,
+                (id) => `[data-sentence-id="s${id}"]`,
+                (id) => `#sentence-${id}`,
                 (id) => `#s${id}`,
-                (id) => `[id="${id}"]`,
+                (id) => `[id="${id}"]`
             ];
             
-            // 🚀 优化：高效缓存系统
+            // 缓存系统
             this.cache = {
-                elements: new Map(),        // DOM元素缓存
-                strategies: new Map(),      // 成功策略缓存
-                layouts: new Map(),         // 布局信息缓存（简化）
-                timeIndex: new Map(),       // 时间索引缓存
-                lastStrategy: 0,            // 上次成功的策略
-                hit: 0,                     // 缓存命中计数
-                miss: 0                     // 缓存未命中计数
+                elements: new Map(),
+                strategies: new Map(),
+                layouts: new Map(),
+                timeIndex: new Map(),
+                lastStrategy: 0,
+                hit: 0,
+                miss: 0
             };
 
-            // 🚀 优化：简化状态管理
+            // 状态管理
             this.state = {
                 srtData: [],
                 timeIndex: [],
                 currentIndex: -1,
                 lastElement: null,
-                timeOffset: this.config.offset,
-                autoscroll: this.config.autoscroll,
+                timeOffset: this.config.offset || 0,
+                autoscroll: this.config.autoscroll !== false,
                 lastUpdateTime: 0,
                 lastProcessedTime: -1,
-                isUpdating: false,          // 防重入标记
-                updateFrame: null,          // 动画帧ID
+                isUpdating: false,
+                updateFrame: null
             };
             
-            // 性能监控
-            const perfId = window.EnglishSite.PerformanceMonitor?.startMeasure('audioSyncInit', 'audioSync');
+            console.log('[AudioSync] 📊 验证必需参数...');
             
             // 验证参数
-            if (!this.contentArea || !this.audioPlayer || !srtText) {
-                throw new Error('AudioSync: Missing required arguments');
+            if (!this.contentArea || !this.audioPlayer || !this.srtText) {
+                throw new Error('AudioSync: Missing required arguments (contentArea, audioPlayer, or srtText)');
             }
 
-            // 🚀 优化：预缓存DOM元素（批量处理）
-            await Promise.all([
-                this.#parseSRTData(srtText),
-                this.#preCacheDOMElements(),
-                this.#preAnalyzeLayouts()  // 🚀 新增：预分析关键布局
-            ]);
+            const perfId = this.startPerformanceMeasure('audioSyncInit');
             
-            this.#addEventListeners();
+            console.log('[AudioSync] 📝 开始解析SRT数据...');
             
-            window.EnglishSite.PerformanceMonitor?.endMeasure(perfId);
+            // 核心初始化步骤
+            await this.parseSRTData();
+            await this.preCacheDOMElements();
+            await this.preAnalyzeLayouts();
             
-            if (this.config.debug) {
-                console.log('[AudioSync] 🚀 优化版初始化完成:', {
-                    srtCueCount: this.state.srtData.length,
-                    cachedElements: this.cache.elements.size,
-                    cacheHitRate: this.#getCacheHitRate(),
-                    workerUsed: this.workerUsed,
-                    memoryOptimized: true
+            this.addEventListeners();
+            
+            this.endPerformanceMeasure(perfId);
+            
+            this.isInitialized = true;
+            
+            console.log('[AudioSync] ✅ 稳定版音频同步初始化完成:', {
+                srtCueCount: this.state.srtData.length,
+                cachedElements: this.cache.elements.size,
+                cacheHitRate: this.getCacheHitRate(),
+                workerUsed: this.workerUsed || false
+            });
+            
+        } catch (error) {
+            this.initializationError = error;
+            console.error('[AudioSync] ❌ 初始化失败:', error);
+            
+            // 记录错误
+            if (window.EnglishSite.SimpleErrorHandler) {
+                window.EnglishSite.SimpleErrorHandler.record('audioSync', 'initialization', error);
+            }
+            
+            // 显示用户友好的错误信息
+            if (window.EnglishSite.UltraSimpleError) {
+                window.EnglishSite.UltraSimpleError.showError('音频同步初始化失败，请刷新页面重试');
+            }
+            
+            throw error;
+        }
+    }
+
+    // 🔧 创建配置（兼容性优先）
+    createConfig() {
+        try {
+            // 尝试使用现代配置管理
+            if (window.EnglishSite.ConfigManager && window.EnglishSite.ConfigManager.createModuleConfig) {
+                return window.EnglishSite.ConfigManager.createModuleConfig('audioSync', {
+                    offset: this.options.offset || 0,
+                    autoscroll: this.options.autoscroll !== false,
+                    enableWorkers: this.options.enableWorkers !== false && typeof Worker !== 'undefined',
+                    workerTimeout: this.options.workerTimeout || 15000,
+                    debug: this.options.debug || window.location.hostname === 'localhost',
+                    ...this.options
                 });
             }
             
+            // 降级到简单配置
+            return {
+                offset: this.options.offset || 0,
+                autoscroll: this.options.autoscroll !== false,
+                enableWorkers: this.options.enableWorkers !== false && typeof Worker !== 'undefined',
+                workerTimeout: this.options.workerTimeout || 15000,
+                debug: this.options.debug || window.location.hostname === 'localhost'
+            };
         } catch (error) {
-            console.error('[AudioSync] Initialization failed:', error);
-            window.EnglishSite.SimpleErrorHandler?.record('audioSync', 'initialization', error);
-            if (window.EnglishSite?.UltraSimpleError) {
-                window.EnglishSite.UltraSimpleError.showError('音频同步初始化失败');
-            }
+            console.warn('[AudioSync] 配置创建失败，使用默认配置:', error);
+            return {
+                offset: 0,
+                autoscroll: true,
+                enableWorkers: typeof Worker !== 'undefined',
+                workerTimeout: 15000,
+                debug: false
+            };
         }
     }
 
-    // 🚀 优化：并行SRT解析
-    async #parseSRTData(srtText) {
-        const parseId = window.EnglishSite.PerformanceMonitor?.startMeasure('srtParse', 'audioSync');
+    // 📊 性能测量辅助方法
+    startPerformanceMeasure(name) {
+        try {
+            if (window.EnglishSite.PerformanceMonitor && window.EnglishSite.PerformanceMonitor.startMeasure) {
+                return window.EnglishSite.PerformanceMonitor.startMeasure(name, 'audioSync');
+            }
+        } catch (error) {
+            console.warn('[AudioSync] 性能测量启动失败:', error);
+        }
+        return null;
+    }
+
+    endPerformanceMeasure(perfId) {
+        try {
+            if (perfId && window.EnglishSite.PerformanceMonitor && window.EnglishSite.PerformanceMonitor.endMeasure) {
+                window.EnglishSite.PerformanceMonitor.endMeasure(perfId);
+            }
+        } catch (error) {
+            console.warn('[AudioSync] 性能测量结束失败:', error);
+        }
+    }
+
+    // 📝 SRT数据解析
+    async parseSRTData() {
+        const parseId = this.startPerformanceMeasure('srtParse');
         
         try {
+            console.log('[AudioSync] 🔄 解析SRT数据...');
+            
+            // 尝试Worker解析
             if (this.config.enableWorkers && window.EnglishSite.UltraSimpleWorker) {
                 try {
+                    console.log('[AudioSync] 🚀 尝试Worker解析...');
+                    
                     const result = await window.EnglishSite.UltraSimpleWorker.safeExecute(
                         'js/workers/ultra-simple-srt.worker.js',
-                        { srtText },
-                        (data) => this.#parseSRTMainThread(data.srtText)
+                        { srtText: this.srtText },
+                        (data) => this.parseSRTMainThread(data.srtText)
                     );
                     
-                    this.state.srtData = result;
+                    this.state.srtData = result || [];
                     this.workerUsed = true;
+                    
+                    console.log('[AudioSync] ✅ Worker解析成功');
                 } catch (error) {
-                    window.EnglishSite.SimpleErrorHandler?.record('audioSync', 'workerParse', error);
-                    this.state.srtData = this.#parseSRTMainThread(srtText);
+                    console.warn('[AudioSync] ⚠️ Worker解析失败，使用主线程:', error);
+                    this.state.srtData = this.parseSRTMainThread(this.srtText);
                     this.workerUsed = false;
                 }
             } else {
-                this.state.srtData = this.#parseSRTMainThread(srtText);
+                console.log('[AudioSync] 🔧 使用主线程解析...');
+                this.state.srtData = this.parseSRTMainThread(this.srtText);
                 this.workerUsed = false;
             }
             
-            // 🚀 优化：高效时间索引构建
-            this.#buildOptimizedTimeIndex();
+            // 构建时间索引
+            this.buildTimeIndex();
+            
+            console.log(`[AudioSync] ✅ SRT解析完成: ${this.state.srtData.length} 个字幕段`);
             
         } catch (error) {
-            window.EnglishSite.SimpleErrorHandler?.record('audioSync', 'srtParse', error);
+            console.error('[AudioSync] ❌ SRT解析失败:', error);
+            
+            if (window.EnglishSite.SimpleErrorHandler) {
+                window.EnglishSite.SimpleErrorHandler.record('audioSync', 'srtParse', error);
+            }
+            
             throw error;
         } finally {
-            window.EnglishSite.PerformanceMonitor?.endMeasure(parseId);
+            this.endPerformanceMeasure(parseId);
         }
     }
 
-    // 🚀 优化：主线程SRT解析（减少临时对象）
-    #parseSRTMainThread(srtText) {
-        return window.EnglishSite.UltraSimpleError?.safeSync(() => {
+    // 🔧 主线程SRT解析
+    parseSRTMainThread(srtText) {
+        try {
+            if (!srtText || typeof srtText !== 'string') {
+                throw new Error('Invalid SRT text');
+            }
+            
             const blocks = srtText.replace(/\r\n/g, '\n').trim().split('\n\n');
             const cues = [];
             
+            console.log(`[AudioSync] 📊 处理 ${blocks.length} 个SRT块...`);
+            
             for (let i = 0; i < blocks.length; i++) {
-                const lines = blocks[i].split('\n');
-                if (lines.length < 2) continue;
+                try {
+                    const lines = blocks[i].split('\n');
+                    if (lines.length < 2) continue;
 
-                const id = lines[0].trim();
-                const timeLine = lines[1];
-                
-                if (timeLine?.includes('-->')) {
-                    const arrowIndex = timeLine.indexOf('-->');
-                    const startTimeStr = timeLine.substring(0, arrowIndex).trim();
-                    const endTimeStr = timeLine.substring(arrowIndex + 3).trim();
+                    const id = lines[0].trim();
+                    const timeLine = lines[1];
                     
-                    cues.push({
-                        id,
-                        startTime: this.#timeToSeconds(startTimeStr),
-                        endTime: this.#timeToSeconds(endTimeStr),
-                    });
+                    if (timeLine && timeLine.includes('-->')) {
+                        const arrowIndex = timeLine.indexOf('-->');
+                        const startTimeStr = timeLine.substring(0, arrowIndex).trim();
+                        const endTimeStr = timeLine.substring(arrowIndex + 3).trim();
+                        
+                        const startTime = this.timeToSeconds(startTimeStr);
+                        const endTime = this.timeToSeconds(endTimeStr);
+                        
+                        if (!isNaN(startTime) && !isNaN(endTime) && endTime > startTime) {
+                            cues.push({
+                                id: id,
+                                startTime: startTime,
+                                endTime: endTime
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`[AudioSync] ⚠️ 跳过无效的SRT块 ${i}:`, error);
                 }
             }
             
+            console.log(`[AudioSync] ✅ 成功解析 ${cues.length} 个有效字幕段`);
             return cues;
-        }, [], 'audioSync.parseSRT');
+            
+        } catch (error) {
+            console.error('[AudioSync] ❌ 主线程SRT解析失败:', error);
+            return [];
+        }
     }
 
-    // 🚀 优化：时间转换（缓存结果）
-    #timeToSeconds(timeString) {
-        // 简单缓存，避免重复计算相同的时间字符串
+    // ⏰ 时间转换
+    timeToSeconds(timeString) {
+        // 简单缓存
         if (this.cache.timeIndex.has(timeString)) {
             return this.cache.timeIndex.get(timeString);
         }
         
-        const result = window.EnglishSite.UltraSimpleError?.safeSync(() => {
+        try {
             const colonIndex1 = timeString.indexOf(':');
             const colonIndex2 = timeString.indexOf(':', colonIndex1 + 1);
             const commaIndex = timeString.indexOf(',', colonIndex2);
             
-            const hh = +timeString.substring(0, colonIndex1);
-            const mm = +timeString.substring(colonIndex1 + 1, colonIndex2);
-            const ss = +timeString.substring(colonIndex2 + 1, commaIndex);
-            const ms = +timeString.substring(commaIndex + 1);
+            if (colonIndex1 === -1 || colonIndex2 === -1 || commaIndex === -1) {
+                throw new Error('Invalid time format');
+            }
             
-            return hh * 3600 + mm * 60 + ss + ms / 1000;
-        }, 0, 'audioSync.timeToSeconds');
-        
-        // 限制缓存大小
-        if (this.cache.timeIndex.size < 200) {
-            this.cache.timeIndex.set(timeString, result);
+            const hh = parseInt(timeString.substring(0, colonIndex1), 10);
+            const mm = parseInt(timeString.substring(colonIndex1 + 1, colonIndex2), 10);
+            const ss = parseInt(timeString.substring(colonIndex2 + 1, commaIndex), 10);
+            const ms = parseInt(timeString.substring(commaIndex + 1), 10);
+            
+            const result = hh * 3600 + mm * 60 + ss + ms / 1000;
+            
+            // 限制缓存大小
+            if (this.cache.timeIndex.size < 200) {
+                this.cache.timeIndex.set(timeString, result);
+            }
+            
+            return result;
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 时间转换失败:', timeString, error);
+            return 0;
         }
-        
-        return result;
     }
 
-    // 🚀 新增：优化的时间索引构建
-    #buildOptimizedTimeIndex() {
-        this.state.timeIndex = this.state.srtData.map((cue, i) => ({
-            start: cue.startTime,
-            end: cue.endTime,
-            index: i,
-            id: cue.id
-        }));
-        
-        // 按开始时间排序
-        this.state.timeIndex.sort((a, b) => a.start - b.start);
-        
-        if (this.config.debug) {
-            console.log('[AudioSync] 时间索引构建完成:', this.state.timeIndex.length);
+    // 📊 构建时间索引
+    buildTimeIndex() {
+        try {
+            this.state.timeIndex = this.state.srtData.map((cue, i) => ({
+                start: cue.startTime,
+                end: cue.endTime,
+                index: i,
+                id: cue.id
+            }));
+            
+            // 按开始时间排序
+            this.state.timeIndex.sort((a, b) => a.start - b.start);
+            
+            console.log(`[AudioSync] 📊 时间索引构建完成: ${this.state.timeIndex.length} 项`);
+        } catch (error) {
+            console.error('[AudioSync] ❌ 时间索引构建失败:', error);
+            this.state.timeIndex = [];
         }
     }
     
-    // 🚀 优化：预缓存DOM元素（批量处理）
-    async #preCacheDOMElements() {
-        const cacheId = window.EnglishSite.PerformanceMonitor?.startMeasure('preCacheDOM', 'audioSync');
+    // 🗂️ 预缓存DOM元素
+    async preCacheDOMElements() {
+        const cacheId = this.startPerformanceMeasure('preCacheDOM');
         
         try {
-            // 🚀 优化：一次性获取所有候选元素
-            const allElements = this.contentArea.querySelectorAll(`[${AudioSync.#SENTENCE_ID_ATTR}]`);
+            console.log('[AudioSync] 🗂️ 开始预缓存DOM元素...');
+            
+            // 一次性获取所有候选元素
+            const allElements = this.contentArea.querySelectorAll(`[${this.SENTENCE_ID_ATTR}]`);
             const elementMap = new Map();
 
-            // 🚀 优化：批量处理，减少循环开销
+            console.log(`[AudioSync] 📊 找到 ${allElements.length} 个候选元素`);
+
+            // 批量处理
             for (let i = 0; i < allElements.length; i++) {
                 const el = allElements[i];
                 let id = el.dataset.sentenceId;
-                if (id?.startsWith('s')) id = id.slice(1);
-                if (id) elementMap.set(id, el);
+                if (id && id.startsWith('s')) {
+                    id = id.slice(1);
+                }
+                if (id) {
+                    elementMap.set(id, el);
+                }
             }
 
-            // 🚀 优化：按批次缓存元素
+            // 按批次缓存元素
             let cached = 0;
-            for (let i = 0; i < this.state.srtData.length; i += this.opts.batchSize) {
-                const batch = this.state.srtData.slice(i, i + this.opts.batchSize);
+            for (let i = 0; i < this.state.srtData.length; i += this.performanceOpts.batchSize) {
+                const batch = this.state.srtData.slice(i, i + this.performanceOpts.batchSize);
                 
                 for (const cue of batch) {
                     const el = elementMap.get(cue.id);
@@ -277,30 +393,33 @@ class AudioSync {
                     }
                 }
                 
-                // 🚀 让出主线程，避免阻塞
-                if (i % (this.opts.batchSize * 4) === 0) {
+                // 让出主线程
+                if (i % (this.performanceOpts.batchSize * 4) === 0) {
                     await new Promise(resolve => setTimeout(resolve, 0));
                 }
             }
             
-            window.EnglishSite.PerformanceMonitor?.endMeasure(cacheId);
-            
-            if (this.config.debug) {
-                console.log(`[AudioSync] DOM元素预缓存完成: ${cached}/${this.state.srtData.length}`);
-            }
+            console.log(`[AudioSync] ✅ DOM元素预缓存完成: ${cached}/${this.state.srtData.length}`);
             
         } catch (error) {
-            window.EnglishSite.PerformanceMonitor?.endMeasure(cacheId);
-            window.EnglishSite.SimpleErrorHandler?.record('audioSync', 'preCacheDOM', error);
+            console.error('[AudioSync] ❌ DOM预缓存失败:', error);
+            
+            if (window.EnglishSite.SimpleErrorHandler) {
+                window.EnglishSite.SimpleErrorHandler.record('audioSync', 'preCacheDOM', error);
+            }
+        } finally {
+            this.endPerformanceMeasure(cacheId);
         }
     }
 
-    // 🚀 新增：预分析关键布局信息
-    async #preAnalyzeLayouts() {
-        const analysisId = window.EnglishSite.PerformanceMonitor?.startMeasure('preAnalyzeLayouts', 'audioSync');
+    // 🎨 预分析布局
+    async preAnalyzeLayouts() {
+        const analysisId = this.startPerformanceMeasure('preAnalyzeLayouts');
         
         try {
-            // 只分析前10个元素的布局，避免阻塞
+            console.log('[AudioSync] 🎨 开始预分析布局...');
+            
+            // 只分析前10个元素
             const elementsToAnalyze = Math.min(10, this.state.srtData.length);
             
             for (let i = 0; i < elementsToAnalyze; i++) {
@@ -308,7 +427,7 @@ class AudioSync {
                 const element = this.cache.elements.get(cue.id);
                 
                 if (element) {
-                    const layoutInfo = this.#getElementLayoutInfo(element);
+                    const layoutInfo = this.getElementLayoutInfo(element);
                     this.cache.layouts.set(cue.id, layoutInfo);
                 }
                 
@@ -318,51 +437,58 @@ class AudioSync {
                 }
             }
             
-            window.EnglishSite.PerformanceMonitor?.endMeasure(analysisId);
-            
-            if (this.config.debug) {
-                console.log(`[AudioSync] 预分析布局完成: ${this.cache.layouts.size} 个元素`);
-            }
+            console.log(`[AudioSync] ✅ 预分析布局完成: ${this.cache.layouts.size} 个元素`);
             
         } catch (error) {
-            window.EnglishSite.PerformanceMonitor?.endMeasure(analysisId);
-            window.EnglishSite.SimpleErrorHandler?.record('audioSync', 'preAnalyzeLayouts', error);
+            console.error('[AudioSync] ❌ 布局预分析失败:', error);
+            
+            if (window.EnglishSite.SimpleErrorHandler) {
+                window.EnglishSite.SimpleErrorHandler.record('audioSync', 'preAnalyzeLayouts', error);
+            }
+        } finally {
+            this.endPerformanceMeasure(analysisId);
         }
     }
 
-    // 🚀 优化：轻量级事件监听
-    #addEventListeners() {
-        window.EnglishSite.UltraSimpleError?.safeSync(() => {
+    // 🎧 事件监听器
+    addEventListeners() {
+        try {
+            console.log('[AudioSync] 🎧 添加事件监听器...');
+            
             if (this.audioPlayer) {
-                // 🚀 优化：使用箭头函数避免bind开销
-                this.audioPlayer.addEventListener('timeupdate', (e) => this.#handleTimeUpdate(e), { passive: true });
-                this.audioPlayer.addEventListener('ended', () => this.#handleAudioEnded(), { passive: true });
-                this.audioPlayer.addEventListener('error', (e) => this.#handleAudioError(e), { passive: true });
+                // 使用箭头函数避免bind开销
+                this.audioPlayer.addEventListener('timeupdate', (e) => this.handleTimeUpdate(e), { passive: true });
+                this.audioPlayer.addEventListener('ended', () => this.handleAudioEnded(), { passive: true });
+                this.audioPlayer.addEventListener('error', (e) => this.handleAudioError(e), { passive: true });
             }
             
             if (this.contentArea) {
-                this.contentArea.addEventListener('click', (e) => this.#handleTextClick(e), { passive: true });
+                this.contentArea.addEventListener('click', (e) => this.handleTextClick(e), { passive: true });
             }
-        }, null, 'audioSync.addEventListeners');
+            
+            console.log('[AudioSync] ✅ 事件监听器添加完成');
+        } catch (error) {
+            console.error('[AudioSync] ❌ 事件监听器添加失败:', error);
+        }
     }
 
-    // 🚀 重大优化：超高效时间更新处理
-    #handleTimeUpdate() {
-        // 🚀 防重入检查
+    // 🔄 时间更新处理
+    handleTimeUpdate() {
+        // 防重入检查
         if (this.state.isUpdating) return;
         
-        return window.EnglishSite.UltraSimpleError?.safeSync(() => {
+        try {
             if (!this.audioPlayer || this.audioPlayer.paused) return;
             
             const now = performance.now();
-            if (now - this.state.lastUpdateTime < this.opts.updateThrottle) return;
+            if (now - this.state.lastUpdateTime < this.performanceOpts.updateThrottle) return;
             
             this.state.lastUpdateTime = now;
             this.state.isUpdating = true;
             
             const currentTime = this.audioPlayer.currentTime + this.state.timeOffset;
             
-            // 🚀 优化：只在时间有显著变化时更新
+            // 只在时间有显著变化时更新
             if (Math.abs(currentTime - this.state.lastProcessedTime) < 0.05) {
                 this.state.isUpdating = false;
                 return;
@@ -370,17 +496,17 @@ class AudioSync {
             
             this.state.lastProcessedTime = currentTime;
             
-            // 🚀 优化：使用更高效的索引查找
-            const newIndex = this.#findCueIndexOptimized(currentTime);
+            // 查找当前字幕
+            const newIndex = this.findCueIndex(currentTime);
             
             if (newIndex !== this.state.currentIndex) {
-                // 🚀 使用requestAnimationFrame确保平滑更新
+                // 使用requestAnimationFrame确保平滑更新
                 if (this.state.updateFrame) {
                     cancelAnimationFrame(this.state.updateFrame);
                 }
                 
                 this.state.updateFrame = requestAnimationFrame(() => {
-                    this.#updateHighlightOptimized(newIndex);
+                    this.updateHighlight(newIndex);
                     this.state.currentIndex = newIndex;
                     this.state.isUpdating = false;
                     this.state.updateFrame = null;
@@ -389,31 +515,35 @@ class AudioSync {
                 this.state.isUpdating = false;
             }
             
-        }, null, 'audioSync.handleTimeUpdate');
+        } catch (error) {
+            this.state.isUpdating = false;
+            console.warn('[AudioSync] ⚠️ 时间更新处理失败:', error);
+        }
     }
 
-    // 🚀 重大优化：高效索引查找算法
-    #findCueIndexOptimized(time) {
-        return window.EnglishSite.UltraSimpleError?.safeSync(() => {
+    // 🔍 查找字幕索引
+    findCueIndex(time) {
+        try {
             const timeIndex = this.state.timeIndex;
             if (!timeIndex.length) return -1;
             
-            // 🚀 优化1：基于当前位置的局部搜索
+            // 局部搜索优化
             if (this.state.currentIndex >= 0) {
                 const searchStart = Math.max(0, this.state.currentIndex - 2);
                 const searchEnd = Math.min(timeIndex.length - 1, this.state.currentIndex + 3);
                 
                 for (let i = searchStart; i <= searchEnd; i++) {
                     const cue = this.state.srtData[timeIndex[i].index];
-                    if (time >= (cue.startTime - this.opts.timeTolerance) && 
-                        time <= (cue.endTime + this.opts.timeTolerance)) {
+                    if (time >= (cue.startTime - this.performanceOpts.timeTolerance) && 
+                        time <= (cue.endTime + this.performanceOpts.timeTolerance)) {
                         return timeIndex[i].index;
                     }
                 }
             }
             
-            // 🚀 优化2：二分查找 + 容差
-            let left = 0, right = timeIndex.length - 1;
+            // 二分查找
+            let left = 0;
+            let right = timeIndex.length - 1;
             let bestMatch = -1;
             let bestDistance = Infinity;
             
@@ -422,17 +552,17 @@ class AudioSync {
                 const entry = timeIndex[mid];
                 const cue = this.state.srtData[entry.index];
                 
-                if (time >= (cue.startTime - this.opts.timeTolerance) && 
-                    time <= (cue.endTime + this.opts.timeTolerance)) {
+                if (time >= (cue.startTime - this.performanceOpts.timeTolerance) && 
+                    time <= (cue.endTime + this.performanceOpts.timeTolerance)) {
                     return entry.index;
                 }
                 
-                // 计算距离，寻找最佳匹配
+                // 寻找最佳匹配
                 const startDistance = Math.abs(time - cue.startTime);
                 const endDistance = Math.abs(time - cue.endTime);
                 const minDistance = Math.min(startDistance, endDistance);
                 
-                if (minDistance < bestDistance && minDistance < this.opts.searchTolerance) {
+                if (minDistance < bestDistance && minDistance < this.performanceOpts.searchTolerance) {
                     bestDistance = minDistance;
                     bestMatch = entry.index;
                 }
@@ -446,21 +576,25 @@ class AudioSync {
             
             return bestMatch;
             
-        }, -1, 'audioSync.findCueIndex');
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 字幕索引查找失败:', error);
+            return -1;
+        }
     }
 
-    // 🚀 优化：文本点击处理
-    #handleTextClick(event) {
-        window.EnglishSite.UltraSimpleError?.safeSync(() => {
+    // 🖱️ 文本点击处理
+    handleTextClick(event) {
+        try {
             if (event.target.closest('.glossary-term')) return;
 
-            const target = event.target.closest(`[${AudioSync.#SENTENCE_ID_ATTR}]`);
+            const target = event.target.closest(`[${this.SENTENCE_ID_ATTR}]`);
             if (!target) return;
 
             let id = target.dataset.sentenceId;
-            if (id?.startsWith('s')) id = id.slice(1);
+            if (id && id.startsWith('s')) {
+                id = id.slice(1);
+            }
 
-            // 🚀 优化：使用缓存查找
             const cueIndex = this.state.srtData.findIndex(c => c.id === id);
             if (cueIndex === -1) return;
             
@@ -470,31 +604,43 @@ class AudioSync {
             this.state.currentIndex = cueIndex;
             this.audioPlayer.currentTime = Math.max(0, cue.startTime - this.state.timeOffset);
             this.play();
-            this.#updateHighlightOptimized(cueIndex);
-        }, null, 'audioSync.textClick');
+            this.updateHighlight(cueIndex);
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 文本点击处理失败:', error);
+        }
     }
 
-    // 🚀 优化：音频结束处理
-    #handleAudioEnded() {
-        window.EnglishSite.UltraSimpleError?.safeSync(() => {
+    // 🔚 音频结束处理
+    handleAudioEnded() {
+        try {
             if (this.state.lastElement) {
-                this.#removeHighlightOptimized(this.state.lastElement);
+                this.removeHighlight(this.state.lastElement);
             }
             this.state.currentIndex = -1;
             this.state.lastElement = null;
-        }, null, 'audioSync.audioEnded');
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 音频结束处理失败:', error);
+        }
     }
 
-    // 音频错误处理（保持原样）
-    #handleAudioError(event) {
-        window.EnglishSite.SimpleErrorHandler?.record('audioSync', 'audioError', event.error || new Error('Audio error'));
-        window.EnglishSite.UltraSimpleError?.showError('音频播放出现问题');
+    // ❌ 音频错误处理
+    handleAudioError(event) {
+        console.error('[AudioSync] ❌ 音频错误:', event);
+        
+        if (window.EnglishSite.SimpleErrorHandler) {
+            window.EnglishSite.SimpleErrorHandler.record('audioSync', 'audioError', 
+                event.error || new Error('Audio error'));
+        }
+        
+        if (window.EnglishSite.UltraSimpleError) {
+            window.EnglishSite.UltraSimpleError.showError('音频播放出现问题');
+        }
     }
 
-    // 🚀 重大优化：超高效DOM元素查找
-    #findElementOptimized(cueId) {
-        return window.EnglishSite.UltraSimpleError?.safeSync(() => {
-            // 🚀 优化1：缓存命中
+    // 🔍 查找DOM元素
+    findElement(cueId) {
+        try {
+            // 缓存命中
             if (this.cache.elements.has(cueId)) {
                 const element = this.cache.elements.get(cueId);
                 if (document.contains(element)) {
@@ -507,7 +653,7 @@ class AudioSync {
             
             this.cache.miss++;
             
-            // 🚀 优化2：策略缓存
+            // 策略缓存
             let element = null;
             const cachedStrategy = this.cache.strategies.get(cueId);
             
@@ -520,7 +666,7 @@ class AudioSync {
                 }
             }
             
-            // 🚀 优化3：快速策略遍历
+            // 遍历策略
             for (let i = 0; i < this.domStrategies.length; i++) {
                 if (i === cachedStrategy) continue;
                 
@@ -535,9 +681,9 @@ class AudioSync {
                 }
             }
             
-            // 🚀 优化4：简化的模糊搜索
+            // 模糊搜索
             if (!element) {
-                element = this.#fastFuzzySearch(cueId);
+                element = this.fuzzySearch(cueId);
                 if (element) {
                     this.cache.elements.set(cueId, element);
                 }
@@ -545,32 +691,39 @@ class AudioSync {
             
             return element;
             
-        }, null, 'audioSync.findElementOptimized');
-    }
-
-    // 🚀 新增：快速模糊搜索
-    #fastFuzzySearch(cueId) {
-        // 只搜索最常见的属性，减少性能开销
-        const selectors = [
-            `[id*="${cueId}"]`,
-            `[class*="sentence-${cueId}"]`,
-            `[class*="s${cueId}"]`
-        ];
-        
-        for (const selector of selectors) {
-            const element = this.contentArea.querySelector(selector);
-            if (element) return element;
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 元素查找失败:', cueId, error);
+            return null;
         }
-        
-        return null;
     }
 
-    // 🚀 重大优化：超级轻量化高亮更新（恢复智能高亮）
-    #updateHighlightOptimized(index) {
-        return window.EnglishSite.UltraSimpleError?.safeSync(() => {
+    // 🔍 模糊搜索
+    fuzzySearch(cueId) {
+        try {
+            const selectors = [
+                `[id*="${cueId}"]`,
+                `[class*="sentence-${cueId}"]`,
+                `[class*="s${cueId}"]`
+            ];
+            
+            for (const selector of selectors) {
+                const element = this.contentArea.querySelector(selector);
+                if (element) return element;
+            }
+            
+            return null;
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 模糊搜索失败:', cueId, error);
+            return null;
+        }
+    }
+
+    // ✨ 更新高亮
+    updateHighlight(index) {
+        try {
             // 移除之前的高亮
             if (this.state.lastElement) {
-                this.#removeHighlightOptimized(this.state.lastElement);
+                this.removeHighlight(this.state.lastElement);
             }
 
             if (index === -1) {
@@ -581,70 +734,60 @@ class AudioSync {
             const cue = this.state.srtData[index];
             if (!cue) return;
             
-            const element = this.#findElementOptimized(cue.id);
+            const element = this.findElement(cue.id);
             
             if (element) {
-                // 🚀 恢复智能高亮决策
-                this.#applySmartHighlight(element, cue.id);
+                this.applySmartHighlight(element, cue.id);
                 this.state.lastElement = element;
                 
-                // 🚀 优化：条件滚动
+                // 自动滚动
                 if (this.state.autoscroll) {
-                    this.#scrollOptimized(element);
+                    this.scrollToElement(element);
                 }
                 
                 if (this.config.debug) {
-                    console.log(`✨ 高亮: ${cue.id} (${cue.startTime.toFixed(1)}s)`);
+                    console.log(`[AudioSync] ✨ 高亮: ${cue.id} (${cue.startTime.toFixed(1)}s)`);
                 }
                 
             } else if (this.config.debug) {
-                console.warn(`⚠️ 元素未找到: ${cue.id}`);
+                console.warn(`[AudioSync] ⚠️ 元素未找到: ${cue.id}`);
             }
             
-        }, null, 'audioSync.updateHighlight');
-    }
-
-    // 🚀 恢复：智能高亮决策系统
-    #applySmartHighlight(element, cueId) {
-        // 获取布局信息（优先使用缓存）
-        let layoutInfo = this.cache.layouts.get(cueId);
-        if (!layoutInfo) {
-            layoutInfo = this.#getElementLayoutInfo(element);
-            this.cache.layouts.set(cueId, layoutInfo);
-        }
-        
-        // 智能决策逻辑
-        if (layoutInfo.isDenseText && layoutInfo.isInline && layoutInfo.hasSiblings) {
-            // 密集文本 + 行内 + 有兄弟元素 = 使用最轻量高亮
-            this.#applyMinimalHighlight(element);
-            if (this.config.debug) {
-                console.log(`🟡 使用轻量高亮: ${cueId} (密集文本环境)`);
-            }
-        } else if (layoutInfo.isInline && layoutInfo.hasSiblings) {
-            // 行内 + 有兄弟元素 = 使用中等高亮
-            this.#applyMediumHighlight(element);
-            if (this.config.debug) {
-                console.log(`🟠 使用中等高亮: ${cueId} (行内有兄弟)`);
-            }
-        } else if (layoutInfo.isInParagraph && layoutInfo.parentWidth > 0 && 
-                   layoutInfo.elementWidth / layoutInfo.parentWidth > 0.8) {
-            // 元素宽度占父容器80%以上 = 使用伪元素高亮
-            this.#applyAdvancedHighlight(element);
-            if (this.config.debug) {
-                console.log(`🔵 使用伪元素高亮: ${cueId} (宽元素)`);
-            }
-        } else {
-            // 其他情况 = 使用标准高亮
-            this.#applyStandardHighlight(element);
-            if (this.config.debug) {
-                console.log(`🟢 使用标准高亮: ${cueId} (常规)`);
-            }
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 高亮更新失败:', error);
         }
     }
 
-    // 🚀 恢复：获取元素布局信息
-    #getElementLayoutInfo(element) {
-        return window.EnglishSite.UltraSimpleError?.safeSync(() => {
+    // 🎨 智能高亮决策
+    applySmartHighlight(element, cueId) {
+        try {
+            // 获取布局信息
+            let layoutInfo = this.cache.layouts.get(cueId);
+            if (!layoutInfo) {
+                layoutInfo = this.getElementLayoutInfo(element);
+                this.cache.layouts.set(cueId, layoutInfo);
+            }
+            
+            // 智能决策
+            if (layoutInfo.isDenseText && layoutInfo.isInline && layoutInfo.hasSiblings) {
+                this.applyMinimalHighlight(element);
+            } else if (layoutInfo.isInline && layoutInfo.hasSiblings) {
+                this.applyMediumHighlight(element);
+            } else if (layoutInfo.isInParagraph && layoutInfo.parentWidth > 0 && 
+                       layoutInfo.elementWidth / layoutInfo.parentWidth > 0.8) {
+                this.applyAdvancedHighlight(element);
+            } else {
+                this.applyStandardHighlight(element);
+            }
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 智能高亮失败，使用默认高亮:', error);
+            this.applyStandardHighlight(element);
+        }
+    }
+
+    // 📊 获取元素布局信息
+    getElementLayoutInfo(element) {
+        try {
             const computedStyle = getComputedStyle(element);
             const parentP = element.closest('p');
             const parentContainer = element.closest('div, section, article') || element.parentElement;
@@ -657,138 +800,147 @@ class AudioSync {
                 elementWidth: element.offsetWidth,
                 elementHeight: element.offsetHeight,
                 position: computedStyle.position,
-                float: computedStyle.float,
-                wordBreak: computedStyle.wordBreak,
-                whiteSpace: computedStyle.whiteSpace,
-                // 检测是否在密集文本环境中
-                isDenseText: this.#isDenseTextEnvironment(element)
+                isDenseText: this.isDenseTextEnvironment(element)
             };
-        }, {}, 'audioSync.getElementLayoutInfo');
-    }
-
-    // 🚀 恢复：检测是否在密集文本环境中
-    #isDenseTextEnvironment(element) {
-        const parent = element.parentElement;
-        if (!parent) return false;
-        
-        const textNodes = Array.from(parent.childNodes).filter(node => 
-            node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0
-        );
-        
-        const elementNodes = Array.from(parent.children);
-        
-        // 如果文本节点多于元素节点，认为是密集文本环境
-        return textNodes.length >= elementNodes.length;
-    }
-
-    // 🚀 恢复：最轻量高亮（适用于密集文本）
-    #applyMinimalHighlight(element) {
-        this.#clearHighlightClasses(element);
-        element.classList.add('highlighted-minimal', 'highlight-fade-in');
-    }
-
-    // 🚀 恢复：中等高亮（适用于行内元素）
-    #applyMediumHighlight(element) {
-        this.#clearHighlightClasses(element);
-        element.classList.add('highlighted-medium', 'highlight-fade-in');
-    }
-
-    // 🚀 恢复：标准高亮（适用于常规情况）
-    #applyStandardHighlight(element) {
-        this.#clearHighlightClasses(element);
-        element.classList.add('highlighted-standard', 'highlight-fade-in');
-    }
-
-    // 🚀 恢复：高级伪元素高亮（适用于宽元素）
-    #applyAdvancedHighlight(element) {
-        this.#clearHighlightClasses(element);
-        element.classList.add('highlighted-advanced', 'highlight-fade-in');
-    }
-
-    // 🚀 恢复：清理高亮类名
-    #clearHighlightClasses(element) {
-        element.classList.remove(
-            'highlighted', 
-            'highlighted-minimal', 
-            'highlighted-medium',
-            'highlighted-standard',
-            'highlighted-advanced',
-            'highlight-fade-in',
-            'highlight-fade-out'
-        );
-        element.offsetHeight; // 强制重绘
-    }
-
-    // 🚀 优化：轻量级移除高亮（支持所有高亮类型）
-    #removeHighlightOptimized(element) {
-        if (!element) return;
-        
-        // 添加淡出效果
-        element.classList.add('highlight-fade-out');
-        element.classList.remove('highlight-fade-in');
-        
-        // 🚀 优化：延迟清理，避免阻塞
-        setTimeout(() => {
-            this.#clearHighlightClasses(element);
-        }, 150);
-    }
-
-    // 🚀 优化：智能滚动
-    #scrollOptimized(element) {
-        const rect = element.getBoundingClientRect();
-        const containerRect = this.contentArea.getBoundingClientRect();
-        
-        // 🚀 简化可见性检测
-        const isVisible = (
-            rect.top >= containerRect.top + 30 &&
-            rect.bottom <= containerRect.bottom - 30
-        );
-        
-        if (!isVisible) {
-            element.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-                inline: 'nearest'
-            });
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 布局信息获取失败:', error);
+            return {};
         }
     }
 
-    // 🚀 新增：获取缓存命中率
-    #getCacheHitRate() {
+    // 📝 检测密集文本环境
+    isDenseTextEnvironment(element) {
+        try {
+            const parent = element.parentElement;
+            if (!parent) return false;
+            
+            const textNodes = Array.from(parent.childNodes).filter(node => 
+                node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0
+            );
+            
+            const elementNodes = Array.from(parent.children);
+            
+            return textNodes.length >= elementNodes.length;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // 🎨 高亮样式应用方法
+    applyMinimalHighlight(element) {
+        this.clearHighlightClasses(element);
+        element.classList.add('highlighted-minimal', 'highlight-fade-in');
+    }
+
+    applyMediumHighlight(element) {
+        this.clearHighlightClasses(element);
+        element.classList.add('highlighted-medium', 'highlight-fade-in');
+    }
+
+    applyStandardHighlight(element) {
+        this.clearHighlightClasses(element);
+        element.classList.add('highlighted-standard', 'highlight-fade-in');
+    }
+
+    applyAdvancedHighlight(element) {
+        this.clearHighlightClasses(element);
+        element.classList.add('highlighted-advanced', 'highlight-fade-in');
+    }
+
+    clearHighlightClasses(element) {
+        try {
+            element.classList.remove(
+                'highlighted', 
+                'highlighted-minimal', 
+                'highlighted-medium',
+                'highlighted-standard',
+                'highlighted-advanced',
+                'highlight-fade-in',
+                'highlight-fade-out'
+            );
+            element.offsetHeight; // 强制重绘
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 清理高亮类失败:', error);
+        }
+    }
+
+    // 🗑️ 移除高亮
+    removeHighlight(element) {
+        try {
+            if (!element) return;
+            
+            element.classList.add('highlight-fade-out');
+            element.classList.remove('highlight-fade-in');
+            
+            setTimeout(() => {
+                this.clearHighlightClasses(element);
+            }, 150);
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 移除高亮失败:', error);
+        }
+    }
+
+    // 📜 滚动到元素
+    scrollToElement(element) {
+        try {
+            const rect = element.getBoundingClientRect();
+            const containerRect = this.contentArea.getBoundingClientRect();
+            
+            const isVisible = (
+                rect.top >= containerRect.top + 30 &&
+                rect.bottom <= containerRect.bottom - 30
+            );
+            
+            if (!isVisible) {
+                element.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center',
+                    inline: 'nearest'
+                });
+            }
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 滚动失败:', error);
+        }
+    }
+
+    // 📊 获取缓存命中率
+    getCacheHitRate() {
         const total = this.cache.hit + this.cache.miss;
         return total > 0 ? `${(this.cache.hit / total * 100).toFixed(1)}%` : '0%';
     }
 
-    // === 兼容性方法保持不变 ===
-    #removeHighlight(el) {
-        return this.#removeHighlightOptimized(el);
-    }
+    // === 公共API方法 ===
 
-    #scrollToView(el) {
-        return this.#scrollOptimized(el);
-    }
-
-    // === 公共API方法（保持向后兼容） ===
     async waitForInitialization() {
         return this.initPromise;
     }
 
     play() {
-        window.EnglishSite.UltraSimpleError?.safeSync(() => {
-            this.audioPlayer?.play();
-        }, null, 'audioSync.play');
+        try {
+            if (this.audioPlayer) {
+                this.audioPlayer.play();
+            }
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 播放失败:', error);
+        }
     }
 
     pause() {
-        window.EnglishSite.UltraSimpleError?.safeSync(() => {
-            this.audioPlayer?.pause();
-        }, null, 'audioSync.pause');
+        try {
+            if (this.audioPlayer) {
+                this.audioPlayer.pause();
+            }
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 暂停失败:', error);
+        }
     }
 
     isPaused() {
-        return window.EnglishSite.UltraSimpleError?.safeSync(() => {
-            return this.audioPlayer?.paused ?? true;
-        }, true, 'audioSync.isPaused');
+        try {
+            return this.audioPlayer ? this.audioPlayer.paused : true;
+        } catch (error) {
+            return true;
+        }
     }
 
     toggleAutoscroll(enabled) {
@@ -797,26 +949,41 @@ class AudioSync {
     }
     
     setPlaybackRate(rate) {
-        window.EnglishSite.UltraSimpleError?.safeSync(() => {
+        try {
             if (this.audioPlayer) {
                 this.audioPlayer.playbackRate = rate;
             }
-        }, null, 'audioSync.setPlaybackRate');
+        } catch (error) {
+            console.warn('[AudioSync] ⚠️ 设置播放速度失败:', error);
+        }
     }
     
     getPlaybackRate() {
-        return window.EnglishSite.UltraSimpleError?.safeSync(() => {
-            return this.audioPlayer?.playbackRate ?? 1;
-        }, 1, 'audioSync.getPlaybackRate');
+        try {
+            return this.audioPlayer ? this.audioPlayer.playbackRate : 1;
+        } catch (error) {
+            return 1;
+        }
     }
 
-    // 🚀 优化：新增高性能统计方法
+    getCacheStats() {
+        return {
+            elements: this.cache.elements.size,
+            strategies: this.cache.strategies.size,
+            layouts: this.cache.layouts.size,
+            timeIndex: this.cache.timeIndex.size,
+            hitRate: this.getCacheHitRate(),
+            hits: this.cache.hit,
+            misses: this.cache.miss
+        };
+    }
+
     getHighlightStats() {
         const stats = {
             totalElements: this.cache.elements.size,
             cachedStrategies: this.cache.strategies.size,
             cachedLayouts: this.cache.layouts.size,
-            cacheHitRate: this.#getCacheHitRate(),
+            cacheHitRate: this.getCacheHitRate(),
             lastStrategy: this.cache.lastStrategy,
             byType: {
                 minimal: 0,
@@ -827,7 +994,7 @@ class AudioSync {
             }
         };
         
-        // 统计各种布局类型
+        // 统计布局类型
         for (const [cueId, layoutInfo] of this.cache.layouts) {
             if (layoutInfo.isDenseText && layoutInfo.isInline && layoutInfo.hasSiblings) {
                 stats.byType.minimal++;
@@ -846,36 +1013,37 @@ class AudioSync {
         return stats;
     }
 
-    getCacheStats() {
-        return {
-            elements: this.cache.elements.size,
-            strategies: this.cache.strategies.size,
-            layouts: this.cache.layouts.size,
-            timeIndex: this.cache.timeIndex.size,
-            hitRate: this.#getCacheHitRate(),
-            hits: this.cache.hit,
-            misses: this.cache.miss
-        };
-    }
-
     getPerformanceStats() {
-        return window.EnglishSite.PerformanceMonitor?.getStats('audioSync') || {};
+        try {
+            return window.EnglishSite.PerformanceMonitor ? 
+                   window.EnglishSite.PerformanceMonitor.getStats('audioSync') : {};
+        } catch (error) {
+            return {};
+        }
     }
 
     getErrorState() {
-        return window.EnglishSite.SimpleErrorHandler?.getStats() || {};
+        try {
+            return window.EnglishSite.SimpleErrorHandler ? 
+                   window.EnglishSite.SimpleErrorHandler.getStats() : {};
+        } catch (error) {
+            return {};
+        }
     }
 
-    // 🚀 优化：高效销毁
+    // 🧹 销毁
     async destroy() {
         try {
+            console.log('[AudioSync] 🧹 开始销毁...');
+            
+            // 等待初始化完成
             try {
                 await this.initPromise;
             } catch (error) {
                 // 忽略初始化错误
             }
             
-            // 🚀 清理动画帧
+            // 清理动画帧
             if (this.state.updateFrame) {
                 cancelAnimationFrame(this.state.updateFrame);
                 this.state.updateFrame = null;
@@ -883,20 +1051,20 @@ class AudioSync {
             
             // 移除事件监听器
             if (this.audioPlayer) {
-                this.audioPlayer.removeEventListener('timeupdate', this.#handleTimeUpdate);
-                this.audioPlayer.removeEventListener('ended', this.#handleAudioEnded);
-                this.audioPlayer.removeEventListener('error', this.#handleAudioError);
+                this.audioPlayer.removeEventListener('timeupdate', this.handleTimeUpdate);
+                this.audioPlayer.removeEventListener('ended', this.handleAudioEnded);
+                this.audioPlayer.removeEventListener('error', this.handleAudioError);
             }
             if (this.contentArea) {
-                this.contentArea.removeEventListener('click', this.#handleTextClick);
+                this.contentArea.removeEventListener('click', this.handleTextClick);
             }
             
             // 清理高亮
             if (this.state.lastElement) {
-                this.#removeHighlightOptimized(this.state.lastElement);
+                this.removeHighlight(this.state.lastElement);
             }
 
-            // 🚀 高效清理缓存
+            // 清理缓存
             this.cache.elements.clear();
             this.cache.strategies.clear();
             this.cache.layouts.clear();
@@ -908,15 +1076,21 @@ class AudioSync {
             this.state.currentIndex = -1;
             this.state.lastElement = null;
             
-            if (this.config.debug) {
-                console.log('[AudioSync] 🧹 实例已销毁并清理完成');
-            }
+            this.isInitialized = false;
+            
+            console.log('[AudioSync] ✅ 销毁完成');
             
         } catch (error) {
-            window.EnglishSite.SimpleErrorHandler?.record('audioSync', 'destroy', error);
+            console.error('[AudioSync] ❌ 销毁失败:', error);
+            
+            if (window.EnglishSite.SimpleErrorHandler) {
+                window.EnglishSite.SimpleErrorHandler.record('audioSync', 'destroy', error);
+            }
         }
     }
 }
 
-// 确保模块正确注册到全局
+// 注册到全局命名空间
 window.EnglishSite.AudioSync = AudioSync;
+
+console.log('🎵 AudioSync 稳定重构版 v3.0 加载完成');
