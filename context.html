@@ -3,212 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contexta 超级弹窗 - 七大模型完整展示</title>
+    <title>Contexta 超级弹窗 - 终极完整参数演示</title>
     <style>
-        /* 页面基础样式 */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            line-height: 1.8;
-            color: #333;
-            background-color: #f9f9f9;
-            padding: 2rem;
-            display: flex;
-            justify-content: center;
-        }
-
-        .article-container {
-            max-width: 720px;
-            background-color: #fff;
-            padding: 2rem 3rem;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        .article-text {
-            font-size: 1.2rem;
-            color: #444;
-        }
-
-        /* 可交互的触发单词样式 */
-        .clickable-word {
-            background-color: transparent;
-            cursor: pointer;
-            padding: 2px 2px;
-            border-radius: 4px;
-            transition: background-color 0.3s;
-        }
-        .clickable-word:hover {
-            background-color: rgba(167, 215, 255, 0.7);
-        }
-
-        /* 超级弹窗主容器样式 */
-        #super-popup {
-            display: none; /* 默认隐藏 */
-            position: absolute;
-            width: 420px; /* 增加宽度以容纳更多内容 */
-            background-color: #ffffff;
-            border: 1px solid #e0e0e0;
-            border-radius: 12px;
-            box-shadow: 0 8px G(display: block;)
-        }
-        
-        .speaker-icon {
-            cursor: pointer;
-            font-size: 1.5rem;
-            color: #555;
-        }
-
-        .popup-section {
-            border-top: 1px solid #f0f0f0;
-            padding-top: 12px;
-            margin-top: 12px;
-        }
-        
-        .model-source {
-            font-style: italic;
-            color: #999;
-            font-size: 0.75rem;
-            text-align: right;
-            margin-top: 8px;
-        }
-        
-        details {
-            border: 1px solid #e8e8e8;
-            border-radius: 6px;
-            padding: 10px;
-            margin-top: 8px;
-            background-color: #fafafa;
-        }
-        summary {
-            cursor: pointer;
-            font-weight: 500;
-            color: #333;
-            font-size: 0.9rem;
-        }
-        .details-content {
-            margin-top: 10px;
-            font-size: 0.9rem;
-        }
-
-        .wsd-list { list-style-type: none; padding-left: 0; }
-        .wsd-item { padding: 4px; border-radius: 4px; }
-        .wsd-item.selected { background-color: #e3f2fd; }
+        /* CSS样式与上一版完全相同 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.8; color: #333; background-color: #f9f9f9; padding: 2rem; display: flex; justify-content: center; }
+        .article-container { max-width: 800px; background-color: #fff; padding: 2rem 3rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .article-text { font-size: 1.3rem; color: #444; }
+        .clickable-word { cursor: pointer; padding: 2px 2px; border-radius: 4px; transition: background-color 0.3s; }
+        .clickable-word:hover { background-color: rgba(167, 215, 255, 0.7); }
+        #super-popup { display: none; position: absolute; width: 420px; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 1rem; z-index: 1000; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #popup-title { margin: 0 0 10px 0; font-size: 1.4rem; }
+        .popup-section { border-top: 1px solid #f0f0f0; padding-top: 12px; margin-top: 12px; font-size: 0.9rem;}
+        .param-title { font-weight: bold; color: #1a73e8; }
+        .param-content { margin-left: 10px; color: #333; }
+        .model-source { font-style: italic; color: #aaa; font-size: 0.75rem; display: block; text-align: right; }
     </style>
 </head>
 <body>
 
     <div class="article-container">
-        <h1>Demonstration Article</h1>
+        <h1>Final Interactive Demo</h1>
         <p class="article-text" id="interactive-sentence"></p>
     </div>
 
     <div id="super-popup">
-        <div class="popup-header">
-            <h3 id="popup-title">findings <span class="speaker-icon">🔊</span></h3>
-        </div>
-        
-        <div class="popup-section">
-            <p><strong>【AI 释义】</strong> 在这个语境里，指研究团队那些具有重大突破性、前所未有的研究发现。</p>
-            <p class="model-source">由 <strong>IM-03 (上下文释义模型)</strong> 提供</p>
-        </div>
-        
-        <div class="popup-section">
-            <p><strong>【基础词典】</strong> n. the information that has been discovered as the result of official inquiries.</p>
-        </div>
-        
-        <div class="popup-section">
-            <details>
-                <summary>【AI 词义判断 (IM-02)】</summary>
-                <div class="details-content">
-                    <p>“findings” 在WordNet中存在多个词义，AI根据上下文选择了最匹配的一项：</p>
-                    <ul class="wsd-list">
-                        <li class="wsd-item selected"><strong>1. a discovery of position;</strong> (发现、研究结果)</li>
-                        <li class="wsd-item"><strong>2. the decision of a court on issues of fact or law;</strong> (裁决)</li>
-                    </ul>
-                </div>
-            </details>
-        </div>
-        
-        <div class="popup-section">
-             <details>
-                <summary>【AI 语块分析 (IM-06)】</summary>
-                <div class="details-content">
-                    <p>此单词属于以下语义语块：</p>
-                    <p style="background:#f0f0f0; padding: 8px; border-radius:4px;">their groundbreaking findings <br><strong>(类别: 名词短语 Noun Phrase)</strong></p>
-                </div>
-            </details>
-        </div>
-
-        <div class="popup-section">
-             <details>
-                <summary>【AI 语法分析 (IM-01)】</summary>
-                <div class="details-content">
-                    <p>在所属语块 "their groundbreaking findings" 中：</p>
-                    <ul>
-                        <li><strong>findings</strong> (核心名词)</li>
-                        <li>↑ (修饰) <strong>groundbreaking</strong> (形容词)</li>
-                        <li>↑ (限定) <strong>their</strong> (物主代词)</li>
-                    </ul>
-                    <p><a href="#">[查看完整句子依存树]</a></p>
-                </div>
-            </details>
-        </div>
-        
-        <div class="popup-section">
-            <details>
-                <summary>【AI 功能语法 (IM-08)】</summary>
-                <div class="details-content">
-                    <p>在句中扮演的角色：<strong>参与者 - 目标 (Participant - Goal)</strong></p>
-                    <p><small>释义：是核心动作 `presented` 所指向或影响的对象。</small></p>
-                </div>
-            </details>
-        </div>
-
-        <div class="popup-section">
-            <details>
-                <summary>【AI 情境化同义词 (IM-04)】</summary>
-                <div class="details-content">
-                     <p>可替换 "groundbreaking findings" 的表达：</p>
-                    <ul>
-                        <li>pioneering discoveries (书面语)</li>
-                        <li>revolutionary results (较夸张)</li>
-                    </ul>
-                </div>
-            </details>
-        </div>
-        
-        <div class="popup-section">
-            <details>
-                <summary>【概念链接 (IM-05)】 🔗</summary>
-                <div class="details-content">
-                     <p>核心概念 <strong>“Groundbreaking Research”</strong> 已连接。</p>
-                     <p><a href="#">- 查看已读文章中的相关概念</a></p>
-                </div>
-            </details>
-        </div>
+        <h3 id="popup-title"></h3>
+        <div id="popup-content"></div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // --- 模拟AI分析结果的数据库 (所有参数，所有单词) ---
+            const analysisData = {
+                "default": { "error": "无此单词的模拟数据。" },
+                "despite": {
+                    "ai_explanation": "介词，用于引出与主句相反或矛盾的情况，表示'尽管'、'虽然'。",
+                    "wsd": "不适用 (单义词)",
+                    "chunk": "属于介词短语: <b>Despite initial setbacks</b>",
+                    "grammar": "作为介词，引导其后的名词短语。",
+                    "functional_role": "在句中扮演的角色：<b>环境 - 让步 (Circumstance - Concession)</b>",
+                    "synonyms": "in spite of, notwithstanding",
+                    "concept_link": "无"
+                },
+                "initial": {
+                    "ai_explanation": "形容词，意思是'最初的'、'开始的'。",
+                    "wsd": "不适用 (在此上下文中词义明确)",
+                    "chunk": "属于名词短语: <b>initial setbacks</b>",
+                    "grammar": "作为形容词，修饰名词 <b>setbacks</b>。",
+                    "functional_role": "在句中扮演的角色：<b>修饰语 - 性状 (Modifier - Epithet)</b>",
+                    "synonyms": "first, original, early",
+                    "concept_link": "无"
+                },
+                "setbacks": {
+                    "ai_explanation": "名词，指'挫折'、'障碍'，尤指阻碍进步的事情。",
+                    "wsd": "不适用 (在此上下文中词义明确)",
+                    "chunk": "名词短语的核心: <b>initial setbacks</b>",
+                    "grammar": "名词，复数形式。是介词 'Despite' 的宾语。",
+                    "functional_role": "在'让步'环境中被描述的事物。",
+                    "synonyms": "difficulties, problems, obstacles",
+                    "concept_link": "无"
+                },
+                "the": {
+                    "ai_explanation": "定冠词，用在一个名词前，表示这个名词是听者或读者已经知道的、或特指的那个事物。",
+                    "wsd": "不适用 (功能词)",
+                    "chunk": "属于名词短语的一部分。",
+                    "grammar": "作为**限定词(Determiner)**，用来特指后面的名词。",
+                    "functional_role": "功能：<b>指代与识别 (Identification)</b>",
+                    "synonyms": "不适用",
+                    "concept_link": "无"
+                },
+                "research": {
+                    "ai_explanation": "名词作形容词用，意思是'研究的'，用来限定其后的名词范围。",
+                    "wsd": "不适用",
+                    "chunk": "属于名词短语: <b>the research team</b>",
+                    "grammar": "作为名词修饰语，修饰核心名词 <b>team</b>。",
+                    "functional_role": "在句中扮演的角色：<b>修饰语 - 分类 (Modifier - Classifier)</b>",
+                    "synonyms": "不适用",
+                    "concept_link": "可链接至概念: <b>Academic Research</b>"
+                },
+                "team": {
+                    "ai_explanation": "名词，指为了共同目标一起工作的一群人，即'团队'、'队伍'。",
+                    "wsd": "不适用",
+                    "chunk": "名词短语的核心: <b>the research team</b>",
+                    "grammar": "名词，单数形式。是句子的主语。",
+                    "functional_role": "在句中扮演的角色：<b>行动者 (Actor)</b>",
+                    "synonyms": "group, squad, crew",
+                    "concept_link": "无"
+                },
+                "confidently": {
+                    "ai_explanation": "副词，指“自信地”，生动地描述了动作的情态。",
+                    "wsd": "不适用",
+                    "chunk": "不适用 (作为副词独立修饰动词)",
+                    "grammar": "作为副词，修饰动词 <b>presented</b>。",
+                    "functional_role": "在句中扮演的角色：<b>环境 - 方式 (Circumstance - Manner)</b>",
+                    "synonyms": "with confidence, assuredly",
+                    "concept_link": "无"
+                },
+                "presented": {
+                    "ai_explanation": "动词，这里指为了让人评判或考虑而正式地'展示'、'陈述'、'提交'。",
+                    "wsd": "不适用 (在此上下文中词义明确)",
+                    "chunk": "动词短语的核心",
+                    "grammar": "动词，过去式。是本句的核心谓语。",
+                    "functional_role": "在句中扮演的角色：<b>过程 - 物质过程 (Process - Material)</b>",
+                    "synonyms": "showed, displayed, submitted",
+                    "concept_link": "无"
+                },
+                "their": {
+                    "ai_explanation": "物主代词，意思是'他们的'，表明所属关系。",
+                    "wsd": "不适用 (功能词)",
+                    "chunk": "属于名词短语: <b>their groundbreaking findings</b>",
+                    "grammar": "作为**限定词(Determiner)**，表明 'findings' 的归属。",
+                    "functional_role": "功能：<b>指代与所属 (Possession)</b>",
+                    "synonyms": "不适用",
+                    "concept_link": "无"
+                },
+                "groundbreaking": {
+                    "ai_explanation": "形容词，意思是开创性的、有重大突破的，用于形容想法、发现或事件。",
+                    "wsd": "不适用",
+                    "chunk": "属于名词短语: <b>their groundbreaking findings</b>",
+                    "grammar": "作为形容词，修饰名词 <b>findings</b>。",
+                    "functional_role": "在句中扮演的角色：<b>修饰语 - 性状 (Modifier - Epithet)</b>",
+                    "synonyms": "innovative, pioneering, revolutionary",
+                    "concept_link": "可链接至概念: <b>Innovation</b>"
+                },
+                "findings": {
+                    "ai_explanation": "在这个语境里，指研究团队那些具有重大突破性、前所未有的研究发现。",
+                    "wsd": "AI已选择词义: <b>a discovery of position (研究结果)</b>",
+                    "chunk": "名词短语的核心: <b>their groundbreaking findings</b>",
+                    "grammar": "名词，复数形式。是动词 'presented' 的直接宾语。",
+                    "functional_role": "在句中扮演的角色：<b>动作的承受者 (Goal)</b>",
+                    "synonyms": "discoveries, results, conclusions",
+                    "concept_link": "核心概念: <b>Groundbreaking Research</b>"
+                },
+                "to": {
+                    "ai_explanation": "介词，在这里表示动作的方向，引出动作的接收者。",
+                    "wsd": "不适用 (功能词)",
+                    "chunk": "属于介词短语: <b>to the skeptical committee</b>",
+                    "grammar": "作为介词，连接动词和其接收者。",
+                    "functional_role": "功能：<b>引出接受者 (Recipient Introducer)</b>",
+                    "synonyms": "不适用",
+                    "concept_link": "无"
+                },
+                "skeptical": {
+                    "ai_explanation": "形容词，意思是'持怀疑态度的'，不轻易相信。",
+                    "wsd": "不适用",
+                    "chunk": "属于名词短语: <b>the skeptical committee</b>",
+                    "grammar": "作为形容词，修饰名词 <b>committee</b>。",
+                    "functional_role": "在句中扮演的角色：<b>修饰语 - 性状 (Modifier - Epithet)</b>",
+                    "synonyms": "doubtful, unconvinced, cynical",
+                    "concept_link": "无"
+                },
+                "committee": {
+                    "ai_explanation": "名词，指'委员会'，一个被委派以特定职责的团体。",
+                    "wsd": "不适用",
+                    "chunk": "名词短语的核心: <b>the skeptical committee</b>",
+                    "grammar": "名词，单数形式。是介词 'to' 的宾语。",
+                    "functional_role": "在句中扮演的角色：<b>接受者 (Recipient)</b>",
+                    "synonyms": "board, council, panel",
+                    "concept_link": "无"
+                }
+            };
+
+            // 动态填充弹窗内容的函数
+            function updatePopupContent(word) {
+                const cleanWord = word.toLowerCase().replace(/[,.]$/, '');
+                const data = analysisData[cleanWord] || analysisData['default'];
+                const contentContainer = document.getElementById('popup-content');
+                
+                if (data.error) {
+                    contentContainer.innerHTML = `<p>${data.error}</p>`;
+                    return;
+                }
+
+                // 严格按照所有参数生成HTML
+                contentContainer.innerHTML = `
+                    <div class="popup-section" style="border-top:none; margin-top:0; padding-top:0;">
+                        <p><span class="param-title">【AI 释义】</span><span class="param-content">${data.ai_explanation}</span></p>
+                        <span class="model-source">IM-03</span>
+                    </div>
+                    <div class="popup-section">
+                        <p><span class="param-title">【词义判断】</span><span class="param-content">${data.wsd}</span></p>
+                        <span class="model-source">IM-02</span>
+                    </div>
+                    <div class="popup-section">
+                        <p><span class="param-title">【语块分析】</span><span class="param-content">${data.chunk}</span></p>
+                        <span class="model-source">IM-06</span>
+                    </div>
+                    <div class="popup-section">
+                        <p><span class="param-title">【语法分析】</span><span class="param-content">${data.grammar}</span></p>
+                        <span class="model-source">IM-01</span>
+                    </div>
+                    <div class="popup-section">
+                        <p><span class="param-title">【功能语法】</span><span class="param-content">${data.functional_role}</span></p>
+                        <span class="model-source">IM-08</span>
+                    </div>
+                    <div class="popup-section">
+                        <p><span class="param-title">【情境同义】</span><span class="param-content">${data.synonyms}</span></p>
+                        <span class="model-source">IM-04</span>
+                    </div>
+                    <div class="popup-section">
+                        <p><span class="param-title">【概念链接】</span><span class="param-content">${data.concept_link}</span></p>
+                        <span class="model-source">IM-05</span>
+                    </div>
+                `;
+            }
+
+            // 页面初始化和事件绑定
             const sentenceContainer = document.getElementById('interactive-sentence');
             const superPopup = document.getElementById('super-popup');
             const popupTitle = document.getElementById('popup-title');
 
             const sentence = "Despite initial setbacks, the research team confidently presented their groundbreaking findings to the skeptical committee.";
             
-            const words = sentence.split(' ');
-            sentenceContainer.innerHTML = words.map(word => `<span class="clickable-word">${word}</span>`).join(' ');
+            sentenceContainer.innerHTML = sentence.split(' ').map(word => `<span class="clickable-word">${word}</span>`).join(' ');
 
-            const clickableWords = document.querySelectorAll('.clickable-word');
-
-            clickableWords.forEach(wordElement => {
+            document.querySelectorAll('.clickable-word').forEach(wordElement => {
                 wordElement.addEventListener('click', (event) => {
                     event.stopPropagation();
                     const clickedWord = event.target.textContent;
-                    popupTitle.innerHTML = `${clickedWord} <span class="speaker-icon">🔊</span>`;
-
-                    // 在真实应用中，此处会用API返回的数据填充所有弹窗内容
-                    // updatePopupWithAnalysis(analysisData);
+                    popupTitle.textContent = clickedWord;
+                    updatePopupContent(clickedWord);
 
                     const rect = event.target.getBoundingClientRect();
                     superPopup.style.left = `${rect.left}px`;
@@ -217,13 +232,8 @@
                 });
             });
 
-            superPopup.addEventListener('click', (event) => {
-                event.stopPropagation();
-            });
-
-            document.addEventListener('click', () => {
-                superPopup.style.display = 'none';
-            });
+            superPopup.addEventListener('click', (event) => event.stopPropagation());
+            document.addEventListener('click', () => { superPopup.style.display = 'none'; });
         });
     </script>
 </body>
