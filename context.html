@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contexta 超级弹窗 - 全词可点演示</title>
+    <title>Contexta 超级弹窗 - 七大模型完整展示</title>
     <style>
         /* 页面基础样式 */
         body {
@@ -37,7 +37,6 @@
             border-radius: 4px;
             transition: background-color 0.3s;
         }
-
         .clickable-word:hover {
             background-color: rgba(167, 215, 255, 0.7);
         }
@@ -46,28 +45,11 @@
         #super-popup {
             display: none; /* 默认隐藏 */
             position: absolute;
-            width: 380px;
+            width: 420px; /* 增加宽度以容纳更多内容 */
             background-color: #ffffff;
             border: 1px solid #e0e0e0;
             border-radius: 12px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
-            padding: 1rem;
-            z-index: 1000;
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* 弹窗内部样式 */
-        #popup-title {
-            margin: 0 0 10px 0;
-            font-size: 1.4rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            box-shadow: 0 8px G(display: block;)
         }
         
         .speaker-icon {
@@ -81,13 +63,6 @@
             padding-top: 12px;
             margin-top: 12px;
         }
-
-        .section-title {
-            font-weight: bold;
-            color: #1a73e8;
-            margin-bottom: 8px;
-            font-size: 0.85rem;
-        }
         
         .model-source {
             font-style: italic;
@@ -96,81 +71,121 @@
             text-align: right;
             margin-top: 8px;
         }
-
-        .implicit-trigger {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px dashed #ccc;
-            font-size: 0.8rem;
-            color: #6c757d;
-            text-align: center;
-        }
         
-        /* 其他样式保持和上个版本一致 */
-        .synonym-list { list-style-type: none; padding-left: 0; margin: 0; }
-        .synonym-list li { margin-bottom: 4px; }
-        .synonym-list .usage-tag { color: #666; font-size: 0.8rem; margin-left: 8px; }
-        details { border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px; }
-        summary { cursor: pointer; font-weight: 500; color: #333; }
-        .knowledge-link a { text-decoration: none; color: #333; display: block; padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
-        .knowledge-link a:last-child { border-bottom: none; }
-        .knowledge-link a:hover { background-color: #f5f5f5; }
+        details {
+            border: 1px solid #e8e8e8;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 8px;
+            background-color: #fafafa;
+        }
+        summary {
+            cursor: pointer;
+            font-weight: 500;
+            color: #333;
+            font-size: 0.9rem;
+        }
+        .details-content {
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
 
+        .wsd-list { list-style-type: none; padding-left: 0; }
+        .wsd-item { padding: 4px; border-radius: 4px; }
+        .wsd-item.selected { background-color: #e3f2fd; }
     </style>
 </head>
 <body>
 
     <div class="article-container">
         <h1>Demonstration Article</h1>
-        <p class="article-text" id="interactive-sentence">
-            </p>
+        <p class="article-text" id="interactive-sentence"></p>
     </div>
 
     <div id="super-popup">
         <div class="popup-header">
-            <h3 id="popup-title">word <span class="speaker-icon">🔊</span></h3>
-            <p class="model-source">由 <strong>模块三: 高级音频包</strong> 提供发音。</p>
-        </div>
-
-        <div class="popup-section">
-            <div class="section-title">核心解析 (Core Analysis)</div>
-            <p><strong>【AI 释义】</strong> (此处应为针对点击单词的动态释义)</p>
-            <p class="model-source">由 <strong>IM-03 (上下文释义模型)</strong> 提供</p>
-            <hr style="border:0; border-top: 1px solid #f0f0f0; margin: 12px 0;">
-            <p><strong>【基础词典】</strong> (此处应为针对点击单词的动态词典内容)</p>
-            <p class="model-source">由 <strong>模块一: 基础通行证</strong> 提供</p>
-        </div>
-
-        <div class="popup-section">
-            <div class="section-title">用法与结构 (Usage & Structure)</div>
-            <p><strong>【AI 情境化同义词】</strong> (动态内容)</p>
-            <p class="model-source">由 <strong>IM-04 (同义语用模型)</strong> 提供</p>
-            <hr style="border:0; border-top: 1px solid #f0f0f0; margin: 12px 0;">
-            
-            <p><strong>【AI 语法分析】</strong></p>
-            <details>
-                <summary>(动态显示单词所属短语及语法功能)</summary>
-                <p style="margin-top: 10px;">此处为可交互的依存结构图的可视化内容。</p>
-            </details>
-            <p class="model-source">由 <strong>IM-01 (结构分析模型)</strong> 提供</p>
-            <hr style="border:0; border-top: 1px solid #f0f0f0; margin: 12px 0;">
-
-            <p><strong>【AI 功能语法】</strong></p>
-            <p>在句中扮演的角色：(动态显示单词的功能角色)</p>
-            <p class="model-source">由 <strong>IM-08 (功能语法标注器)</strong> 提供</p>
-        </div>
-
-        <div class="popup-section">
-            <div class="section-title">知识网络 (Knowledge Network)</div>
-             <p><strong>【概念链接】</strong> 🔗 (如果单词是核心概念，则显示此部分)</p>
-             <p class="model-source">由 <strong>模块六: 概念链接网络 (IM-05)</strong> 提供</p>
+            <h3 id="popup-title">findings <span class="speaker-icon">🔊</span></h3>
         </div>
         
-        <div class="implicit-trigger">
-            <strong>隐式触发：</strong>此单词已加入“无缝回响系统”复习队列。
-            <p class="model-source" style="text-align: center;">由 <strong>模块五</strong> 提供</p>
+        <div class="popup-section">
+            <p><strong>【AI 释义】</strong> 在这个语境里，指研究团队那些具有重大突破性、前所未有的研究发现。</p>
+            <p class="model-source">由 <strong>IM-03 (上下文释义模型)</strong> 提供</p>
+        </div>
+        
+        <div class="popup-section">
+            <p><strong>【基础词典】</strong> n. the information that has been discovered as the result of official inquiries.</p>
+        </div>
+        
+        <div class="popup-section">
+            <details>
+                <summary>【AI 词义判断 (IM-02)】</summary>
+                <div class="details-content">
+                    <p>“findings” 在WordNet中存在多个词义，AI根据上下文选择了最匹配的一项：</p>
+                    <ul class="wsd-list">
+                        <li class="wsd-item selected"><strong>1. a discovery of position;</strong> (发现、研究结果)</li>
+                        <li class="wsd-item"><strong>2. the decision of a court on issues of fact or law;</strong> (裁决)</li>
+                    </ul>
+                </div>
+            </details>
+        </div>
+        
+        <div class="popup-section">
+             <details>
+                <summary>【AI 语块分析 (IM-06)】</summary>
+                <div class="details-content">
+                    <p>此单词属于以下语义语块：</p>
+                    <p style="background:#f0f0f0; padding: 8px; border-radius:4px;">their groundbreaking findings <br><strong>(类别: 名词短语 Noun Phrase)</strong></p>
+                </div>
+            </details>
         </div>
 
+        <div class="popup-section">
+             <details>
+                <summary>【AI 语法分析 (IM-01)】</summary>
+                <div class="details-content">
+                    <p>在所属语块 "their groundbreaking findings" 中：</p>
+                    <ul>
+                        <li><strong>findings</strong> (核心名词)</li>
+                        <li>↑ (修饰) <strong>groundbreaking</strong> (形容词)</li>
+                        <li>↑ (限定) <strong>their</strong> (物主代词)</li>
+                    </ul>
+                    <p><a href="#">[查看完整句子依存树]</a></p>
+                </div>
+            </details>
+        </div>
+        
+        <div class="popup-section">
+            <details>
+                <summary>【AI 功能语法 (IM-08)】</summary>
+                <div class="details-content">
+                    <p>在句中扮演的角色：<strong>参与者 - 目标 (Participant - Goal)</strong></p>
+                    <p><small>释义：是核心动作 `presented` 所指向或影响的对象。</small></p>
+                </div>
+            </details>
+        </div>
+
+        <div class="popup-section">
+            <details>
+                <summary>【AI 情境化同义词 (IM-04)】</summary>
+                <div class="details-content">
+                     <p>可替换 "groundbreaking findings" 的表达：</p>
+                    <ul>
+                        <li>pioneering discoveries (书面语)</li>
+                        <li>revolutionary results (较夸张)</li>
+                    </ul>
+                </div>
+            </details>
+        </div>
+        
+        <div class="popup-section">
+            <details>
+                <summary>【概念链接 (IM-05)】 🔗</summary>
+                <div class="details-content">
+                     <p>核心概念 <strong>“Groundbreaking Research”</strong> 已连接。</p>
+                     <p><a href="#">- 查看已读文章中的相关概念</a></p>
+                </div>
+            </details>
+        </div>
     </div>
 
     <script>
@@ -181,46 +196,31 @@
 
             const sentence = "Despite initial setbacks, the research team confidently presented their groundbreaking findings to the skeptical committee.";
             
-            // 将句子分割为单词，并为每个单词包裹一个span
             const words = sentence.split(' ');
             sentenceContainer.innerHTML = words.map(word => `<span class="clickable-word">${word}</span>`).join(' ');
 
             const clickableWords = document.querySelectorAll('.clickable-word');
 
-            // 为每个单词添加点击事件监听器
             clickableWords.forEach(wordElement => {
                 wordElement.addEventListener('click', (event) => {
-                    event.stopPropagation(); // 防止事件冒泡到document
-
+                    event.stopPropagation();
                     const clickedWord = event.target.textContent;
-                    
-                    // 动态更新弹窗标题
                     popupTitle.innerHTML = `${clickedWord} <span class="speaker-icon">🔊</span>`;
 
-                    // --- 在真实应用中 ---
-                    // 此处会发起一个API请求，例如:
-                    // fetchAnalysisFor(clickedWord).then(analysis => {
-                    //     // 用返回的真实数据填充弹窗的各个部分
-                    //     updatePopupContent(analysis);
-                    // });
-                    // 为了演示，我们只更新标题，内容保持静态。
+                    // 在真实应用中，此处会用API返回的数据填充所有弹窗内容
+                    // updatePopupWithAnalysis(analysisData);
 
                     const rect = event.target.getBoundingClientRect();
-                    
-                    // 设置弹窗位置在点击单词的下方
                     superPopup.style.left = `${rect.left}px`;
                     superPopup.style.top = `${rect.bottom + 10 + window.scrollY}px`;
-                    
                     superPopup.style.display = 'block';
                 });
             });
 
-            // 点击弹窗内部时，不关闭弹窗
             superPopup.addEventListener('click', (event) => {
                 event.stopPropagation();
             });
 
-            // 点击页面其他任何地方时隐藏弹窗
             document.addEventListener('click', () => {
                 superPopup.style.display = 'none';
             });
