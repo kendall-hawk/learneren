@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contexta 超级弹窗 - 完整功能演示</title>
+    <style>
+        /* 页面基础样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.8;
+            color: #333;
+            background-color: #f9f9f9;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .article-container {
+            max-width: 720px;
+            background-color: #fff;
+            padding: 2rem 3rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .article-text {
+            font-size: 1.2rem;
+            color: #444;
+        }
+
+        /* 可交互的触发短语样式 */
+        #trigger-phrase {
+            background-color: rgba(167, 215, 255, 0.4);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        #trigger-phrase:hover {
+            background-color: rgba(167, 215, 255, 0.7);
+        }
+
+        /* 超级弹窗主容器样式 */
+        #super-popup {
+            display: none; /* 默认隐藏 */
+            position: absolute;
+            width: 380px;
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            padding: 1rem;
+            z-index: 1000;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 弹窗内部样式 */
+        .popup-header h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .speaker-icon {
+            cursor: pointer;
+            font-size: 1.5rem;
+            color: #555;
+        }
+
+        .popup-section {
+            border-top: 1px solid #f0f0f0;
+            padding-top: 12px;
+            margin-top: 12px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            color: #1a73e8;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .model-source {
+            font-style: italic;
+            color: #999;
+            font-size: 0.75rem;
+            text-align: right;
+            margin-top: 8px;
+        }
+
+        .synonym-list {
+            list-style-type: none;
+            padding-left: 0;
+            margin: 0;
+        }
+        .synonym-list li {
+            margin-bottom: 4px;
+        }
+        .synonym-list .usage-tag {
+            color: #666;
+            font-size: 0.8rem;
+            margin-left: 8px;
+        }
+
+        details {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        summary {
+            cursor: pointer;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .knowledge-link a {
+            text-decoration: none;
+            color: #333;
+            display: block;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .knowledge-link a:last-child {
+            border-bottom: none;
+        }
+        .knowledge-link a:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .implicit-trigger {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px dashed #ccc;
+            font-size: 0.8rem;
+            color: #6c757d;
+            text-align: center;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="article-container">
+        <h1>Demonstration Article</h1>
+        <p class="article-text">
+            Despite initial setbacks, the research team confidently presented <span id="trigger-phrase">their groundbreaking findings</span> to the skeptical committee.
+        </p>
+    </div>
+
+    <div id="super-popup">
+        <div class="popup-header">
+            <h3>their groundbreaking findings <span class="speaker-icon">🔊</span></h3>
+            <p class="model-source">由 <strong>模块三: 高级音频包</strong> 提供发音。</p>
+        </div>
+
+        <div class="popup-section">
+            <div class="section-title">核心解析 (Core Analysis)</div>
+            <p><strong>【AI 释义】</strong> 在这个语境里，指研究团队那些具有重大突破性、前所未有的研究发现。</p>
+            <p class="model-source">由 <strong>IM-03 (上下文释义模型)</strong> 提供</p>
+            <hr style="border:0; border-top: 1px solid #f0f0f0; margin: 12px 0;">
+            <p><strong>【基础词典: findings】</strong> n. the information that has been discovered as the result of official inquiries.</p>
+            <p class="model-source">由 <strong>模块一: 基础通行证</strong> 提供</p>
+        </div>
+
+        <div class="popup-section">
+            <div class="section-title">用法与结构 (Usage & Structure)</div>
+            <p><strong>【AI 情境化同义词】</strong></p>
+            <ul class="synonym-list">
+                <li>pioneering discoveries <span class="usage-tag">(书面语, 强调开创性)</span></li>
+                <li>revolutionary results <span class="usage-tag">(较夸张, 强调颠覆性)</span></li>
+                <li>key takeaways <span class="usage-tag">(口语, 非正式)</span></li>
+            </ul>
+             <p class="model-source">由 <strong>IM-04 (同义语用模型)</strong> 提供</p>
+            <hr style="border:0; border-top: 1px solid #f0f0f0; margin: 12px 0;">
+            
+            <p><strong>【AI 语法分析】</strong></p>
+            <details>
+                <summary>这是一个 <strong>名词短语 (Noun Phrase)</strong></summary>
+                <p style="margin-top: 10px;">此处为可交互的依存结构图的可视化内容。</p>
+            </details>
+             <p class="model-source">由 <strong>IM-01 (结构分析模型)</strong> 提供</p>
+            <hr style="border:0; border-top: 1px solid #f0f0f0; margin: 12px 0;">
+
+            <p><strong>【AI 功能语法】</strong></p>
+            <p>在句中扮演的角色：<strong>参与者 - 目标 (Participant - Goal)</strong><br><small>(释义：是核心动作 `presented` 所指向或影响的对象。)</small></p>
+            <p class="model-source">由 <strong>IM-08 (功能语法标注器)</strong> 提供</p>
+        </div>
+
+        <div class="popup-section">
+            <div class="section-title">知识网络 (Knowledge Network)</div>
+             <p><strong>【概念链接】</strong> 🔗</p>
+             <p><small>核心概念 <strong>“Groundbreaking Research”</strong> 已在您的知识花园中建立连接。</small></p>
+             <div class="knowledge-link">
+                 <a href="#">- 《The Framework of Scientific Revolutions》</a>
+                 <a href="#">- 《From Lab to Market: A Tech Story》</a>
+             </div>
+             <p class="model-source">由 <strong>模块六: 概念链接网络 (IM-05)</strong> 提供</p>
+        </div>
+        
+        <div class="implicit-trigger">
+            <strong>隐式触发：</strong>此短语已加入“无缝回响系统”复习队列。
+            <p class="model-source" style="text-align: center;">由 <strong>模块五</strong> 提供</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const triggerPhrase = document.getElementById('trigger-phrase');
+            const superPopup = document.getElementById('super-popup');
+
+            // 点击触发短语时显示弹窗
+            triggerPhrase.addEventListener('click', (event) => {
+                event.stopPropagation(); // 防止事件冒泡到document
+
+                const rect = triggerPhrase.getBoundingClientRect();
+                
+                // 设置弹窗位置在触发短语的下方
+                superPopup.style.left = `${rect.left}px`;
+                superPopup.style.top = `${rect.bottom + 10 + window.scrollY}px`; // +10px的间距
+                
+                superPopup.style.display = 'block';
+            });
+
+            // 点击弹窗内部时，不关闭弹窗
+            superPopup.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+
+            // 点击页面其他任何地方时隐藏弹窗
+            document.addEventListener('click', () => {
+                superPopup.style.display = 'none';
+            });
+        });
+    </script>
+</body>
+</html>
